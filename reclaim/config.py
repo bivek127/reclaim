@@ -4,10 +4,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 POLICY_PATH = ROOT / "config" / "policy.yaml"
+OPERATIONAL_PATH = ROOT / "config" / "operational.yaml"
 
 _DEFAULTS = {
     "max_attempts": 2,
     "ttl_budget_ms": 72 * 60 * 60 * 1000,
+}
+
+LEASE_SECONDS = {
+    "enrichment": 30,
+    "diagnosis": 90,
+    "execution": 60,
+    "reconciliation": 45,
+    "verification": 45,
 }
 
 
@@ -28,3 +37,7 @@ def load_policy(path: Path | None = None) -> dict[str, int]:
         if key in {"max_attempts", "ttl_budget_ms"}:
             values[key] = int(raw)
     return values
+
+
+def lease_seconds_for(work: str) -> int:
+    return LEASE_SECONDS[work]

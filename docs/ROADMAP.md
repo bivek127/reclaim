@@ -47,6 +47,22 @@ Status: complete.
   illegal pair raises. The test derives its sets from the frozenset itself, so
   it cannot drift from the implementation.
 
+### Leases, fencing, and the sweeper
+Status: complete.
+
+- `reclaim/domain/leases.py` — `claim_case` / `claim_next` using
+  `FOR UPDATE SKIP LOCKED`. `fenced_transition()` wraps `transition()`; a write
+  carrying a stale fencing token is a no-op and is audited as
+  `stale_write_rejected` (contract 9).
+- `reclaim/domain/sweeper.py` — releases expired leases, routes an abandoned
+  `EXECUTING` case to `AMBIGUOUS`, and expires TTL budgets.
+- Lease durations in `config/operational.yaml`; the execution lease is at least
+  twice the provider HTTP timeout, so a lease cannot lapse mid-call.
+
+Time spent `HALTED` does not consume a case's TTL (contract 8).
+
+---
+
 ---
 
 ## Tests

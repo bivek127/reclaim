@@ -1,0 +1,14 @@
+# Operational timings. Lease seconds match SPECIFICATION.md §4.1.
+lease_seconds:
+  enrichment: 30
+  diagnosis: 90
+  execution: 60
+  reconciliation: 45
+  verification: 45
+
+# Execution lease must be >= 2× this value (§4.1).
+provider_http_timeout_seconds: 30
+
+sweeper_batch_size: 100
+sweeper_interval_seconds: 15
+ttl_expiry_interval_seconds: 60
