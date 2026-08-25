@@ -1,25 +1,51 @@
 # Roadmap
 
+What is built, what holds it together, and what is deliberately not built.
+
+Claims about safety cite the numbered clauses in
+[ARCHITECTURE.md](ARCHITECTURE.md#13-architecture-contract) — "contract 2" means
+clause 2 of that list.
+
+---
+
 ## Done
 
-- PostgreSQL schema and 18 versioned migrations (`db/migrations/`)
-- Database roles: `recovery_app`, `recovery_verifier`
-- Constraint enforcement via CHECK constraints, partial unique indexes, and triggers
-- Migration runner: `scripts/apply_migrations.py`
-- Database tests: `tests/db/` (58 tests against real PostgreSQL)
+### Database
+Status: complete.
 
-Run tests: `python3 -m pytest tests/db -v`
+- 18 versioned migrations in `db/migrations/`, applied by
+  `scripts/apply_migrations.py`.
+- Two roles with different powers: `recovery_app` for ordinary work,
+  `recovery_verifier` for the one column that represents money
+  (`recovered_amount_minor`).
+- Every constraint has a test that violates it and expects the database to
+  refuse — `tests/db/`.
 
-## Next
+Safety lives in the schema wherever it can. Partial unique indexes enforce "one
+open action per case" and "one open attempt per action" (contract 4); a column
+grant plus a trigger enforce "revenue only after verification" (contract 6).
+These are not application checks that a future caller can forget.
 
-- Webhook ingest and obligation anchor resolution
-- Idempotent case creation (one recovery case per financial obligation)
+### Obligation and case identity
+Status: complete.
 
-## Later
+- `reclaim/domain/anchors.py` — resolves the obligation anchor (order or
+  subscription-cycle id) from a provider payload.
+- `reclaim/domain/lifecycle.py` — idempotent case creation on that anchor.
+- `reclaim/ingest/webhook.py` — ingest as a domain function; no HTTP server.
 
-- State machine and worker orchestration
-- Provider integration (Razorpay)
-- Execution, reconciliation, and verification
-- Policy engine and diagnosis
-- Human review workflow
-- Simulator and observability UI
+Identity binds to the anchor, never to a payment id, case id, or webhook event
+id (contract 1). A duplicate delivery produces one case.
+
+---
+
+## Tests
+
+```bash
+python3 -m pytest tests                                       # everything
+python3 -m pytest tests/provider -m "not provider_contract"   # adapter, offline
+python3 -m pytest tests/provider -m provider_contract         # needs test-mode keys
+```
+
+Database behaviour, concurrency, transactions, constraints, and fencing are
+tested against real PostgreSQL rather than a stub.

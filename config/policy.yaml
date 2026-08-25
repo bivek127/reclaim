@@ -1,0 +1,5 @@
+# Business policy. Changing this file requires bumping policy_version.
+policy_version: "1.0"
+max_attempts: 2
+ttl_budget_ms: 259200000  # 72h
+review_ttl_ms: 86400000   # 24h

@@ -10,7 +10,7 @@ Payment recovery system for failed charges — built around database-enforced sa
 python3 -m pip install -e ".[dev]"
 cp .env.example .env   # edit connection URLs
 python3 scripts/apply_migrations.py --database-url "$DATABASE_URL" --reset
-python3 -m pytest tests/db -v
+python3 -m pytest tests -v
 ```
 
 Optional: `docker compose up -d` for a local Postgres instance.
@@ -19,6 +19,8 @@ Optional: `docker compose up -d` for a local Postgres instance.
 
 ```
 reclaim/
+├── config/              Policy defaults
+├── reclaim/             Application code
 ├── db/migrations/       Versioned SQL schema
 ├── scripts/             Migration runner
 ├── tests/db/            Database constraint tests
