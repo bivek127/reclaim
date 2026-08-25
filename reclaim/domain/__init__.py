@@ -6,6 +6,7 @@ from reclaim.domain.anchors import (
     resolve_event,
 )
 from reclaim.domain.lifecycle import create_obligation_and_case
+from reclaim.domain.transitions import TransitionIllegal, transition
 
 __all__ = [
     "Anchor",
@@ -14,4 +15,6 @@ __all__ = [
     "ResolvedEvent",
     "resolve_event",
     "create_obligation_and_case",
+    "TransitionIllegal",
+    "transition",
 ]

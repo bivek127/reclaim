@@ -37,6 +37,16 @@ Status: complete.
 Identity binds to the anchor, never to a payment id, case id, or webhook event
 id (contract 1). A duplicate delivery produces one case.
 
+### State machine
+Status: complete.
+
+- `reclaim/domain/transitions.py` — a single `transition()` is the only thing
+  that changes case state, and it writes exactly one audit row per transition.
+- `reclaim/domain/states.py` — the allowed edges as an explicit frozenset.
+- `tests/domain/test_transitions.py` — every legal edge passes and **every**
+  illegal pair raises. The test derives its sets from the frozenset itself, so
+  it cannot drift from the implementation.
+
 ---
 
 ## Tests
