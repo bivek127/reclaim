@@ -65,6 +65,52 @@ Time spent `HALTED` does not consume a case's TTL (contract 8).
 
 ---
 
+## In review
+
+### Provider adapter (Razorpay)
+Status: implemented and contract-verified as far as a test account can reach.
+
+`reclaim/provider/`:
+
+- `contract.py` — provider-agnostic vocabulary (`ProviderOutcome`,
+  `FetchOutcome`, `LinkStatus`, `ErrorClass`, and the `PaymentProvider`
+  protocol). No Razorpay string crosses this module.
+- `transport.py` — stdlib `http.client` with `connect()` as its own step, so a
+  request that wrote zero bytes is *observed* as such rather than inferred. No
+  internal retries; retry orchestration belongs to the executor.
+- `razorpay.py` — `create_payment_link`, `fetch_by_reference`,
+  `verify_webhook_signature`, status normalization, error classification.
+  `retry_charge` raises: no merchant-facing charge-retry endpoint exists.
+- `config.py` — credentials from the environment, timeouts from config, refusal
+  to run against a live key, and secret redaction in `repr`, `str`, and
+  exception text.
+
+The adapter performs **no database access**: no writes, no transitions, no
+leases, no policy, no reconciliation decisions.
+
+Verified against Razorpay test mode (2026-08-26), 7 of 9 contract tests passing
+live:
+
+- Fetch by `reference_id` works — but the search endpoint is **not immediately
+  consistent** after creation, resolving in roughly 1–3 seconds. This is not
+  documented by Razorpay; it was found by running the suite.
+- Duplicate-reference rejection returns HTTP 400 with a specific message. The
+  adapter deliberately does **not** classify on that text — an undocumented
+  string is not a contract.
+- `expire_by` under 15 minutes is rejected.
+- Test mode rate-limits tightly enough that repeated runs hit HTTP 429; the
+  adapter classified those as rate-limited rather than as rejection.
+
+Two assumptions remain unverified because credentials cannot settle them, and
+both have a safe default:
+
+| Assumption | Safe default |
+|---|---|
+| An expired payment link means the customer will never pay | Expiry exposes no terminal-failure signal. A case past its deadline escalates to a human instead. Closing this needs a human abandoning a real checkout page. |
+| Subscription cycle ids are stable | The existing anchor is retained unchanged. Closing this needs a live subscription with two consecutive failed cycles. |
+
+---
+
 ## Tests
 
 ```bash
