@@ -18,6 +18,18 @@ from reclaim.domain.execution import (
     settle_dispatch,
 )
 from reclaim.domain.leases import Claim, claim_case, fenced_transition
+from reclaim.domain.reconciliation import (
+    OpenAttempt,
+    ReconcileResult,
+    ReconciliationBlocked,
+    claim_for_reconciliation,
+    classify,
+    open_attempt_for,
+    poll_count,
+    post_count,
+    reconcile_case,
+    reconcile_once,
+)
 from reclaim.domain.lifecycle import create_obligation_and_case
 from reclaim.domain.sweeper import expire_ttl, sweep_expired_leases
 from reclaim.domain.transitions import TransitionIllegal, transition
@@ -47,6 +59,16 @@ __all__ = [
     "new_idempotency_key",
     "prepare_dispatch",
     "settle_dispatch",
+    "OpenAttempt",
+    "ReconcileResult",
+    "ReconciliationBlocked",
+    "claim_for_reconciliation",
+    "classify",
+    "open_attempt_for",
+    "poll_count",
+    "post_count",
+    "reconcile_case",
+    "reconcile_once",
     "expire_ttl",
     "sweep_expired_leases",
 ]

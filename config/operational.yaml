@@ -23,3 +23,9 @@ provider_fetch_timeout_seconds: 10
 # Payment Link validity. Razorpay rejects expire_by less than 15 minutes
 # (900s) ahead and more than 6 months ahead.
 payment_link_ttl_seconds: 3600
+
+# Reconciliation loop (§6.2). max_polls counts provider GETs, not the
+# bounded same-key re-POSTs, which have their own §5.4 cap.
+reconciliation_interval_seconds: 30
+reconciliation_max_polls: 20
+reconciliation_max_posts_per_attempt: 3

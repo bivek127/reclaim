@@ -10,6 +10,8 @@ from reclaim.provider.contract import (
     CreateLinkResult,
     Customer,
     ErrorClass,
+    FetchOutcome,
+    FetchResult,
     LinkStatus,
     ProviderOutcome,
     RequestRecord,
@@ -82,11 +84,91 @@ class StubProvider:
     def fetch_by_reference(self, *, reference_id: str) -> NoReturn:
         raise AssertionError("Task 6 must never call fetch_by_reference (that is Task 7)")
 
+
+class StubReconcileProvider:
+    """Provider stub for reconciliation tests. Serves scripted fetch results,
+    then POSTs.
+
+    Deliberately separate from StubProvider so an execution test can still
+    assert that dispatch never reads, while reconciliation tests exercise both
+    operations.
+    """
+
+    def __init__(
+        self,
+        *fetches: FetchResult,
+        create_outcome: ProviderOutcome = ProviderOutcome.ACCEPTED,
+        create_correlation_id: str | None = "plink_repost00001",
+    ) -> None:
+        self._fetches = list(fetches)
+        self._create = StubProvider(
+            create_outcome, correlation_id=create_correlation_id
+        )
+        self.fetch_calls: list[str] = []
+
+    @property
+    def create_calls(self) -> list[dict[str, Any]]:
+        return self._create.calls
+
+    def fetch_by_reference(self, *, reference_id: str) -> FetchResult:
+        self.fetch_calls.append(reference_id)
+        if not self._fetches:
+            raise AssertionError(f"unscripted fetch for {reference_id}")
+        nxt = self._fetches.pop(0)
+        if len(self._fetches) == 0:
+            self._fetches.append(nxt)  # repeat the last one for re-queries
+        return nxt
+
+    def create_payment_link(self, **kwargs: Any) -> CreateLinkResult:
+        return self._create.create_payment_link(**kwargs)
+
     def retry_charge(self, **kwargs: Any) -> NoReturn:
         raise RetryChargeUnsupported("§19.1a")
 
     def verify_webhook_signature(self, raw_body: bytes, signature: str) -> bool:
         return False
+
+
+def fetch_found(
+    *,
+    correlation_id: str = "plink_found0000001",
+    link_status: LinkStatus = LinkStatus.CREATED,
+    amount_minor: int | None = 10_000,
+    amount_paid_minor: int = 0,
+) -> FetchResult:
+    return FetchResult(
+        outcome=FetchOutcome.FOUND,
+        provider_reference="ref",
+        request=RequestRecord("fetch_by_reference", "GET", "/v1/payment_links", None),
+        http_status=200,
+        provider_correlation_id=correlation_id,
+        link_status=link_status,
+        amount_minor=amount_minor,
+        amount_paid_minor=amount_paid_minor,
+        currency="INR",
+        response_body={"payment_links": [{"id": correlation_id}]},
+    )
+
+
+def fetch_not_found() -> FetchResult:
+    return FetchResult(
+        outcome=FetchOutcome.NOT_FOUND,
+        provider_reference="ref",
+        request=RequestRecord("fetch_by_reference", "GET", "/v1/payment_links", None),
+        http_status=200,
+        response_body={"payment_links": []},
+    )
+
+
+def fetch_no_evidence(error_class: ErrorClass = ErrorClass.TIMEOUT,
+                      http_status: int | None = None) -> FetchResult:
+    return FetchResult(
+        outcome=FetchOutcome.NO_EVIDENCE,
+        provider_reference="ref",
+        request=RequestRecord("fetch_by_reference", "GET", "/v1/payment_links", None),
+        error_class=error_class,
+        http_status=http_status,
+    )
 
 
 def seed_dispatchable(

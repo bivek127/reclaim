@@ -52,24 +52,20 @@ OPEN_ACTION_STATUSES = ("PROPOSED", "LIVE", "UNRESOLVED")
 # Outcome mapping (TXN 2)
 # ---------------------------------------------------------------------------
 
-# `request_outcome` has no member for several real provider outcomes. Per
-# ADR-010 the enum extension is deferred until the read side needs additional
-# values anyway. Until then these collapse onto TIMEOUT in the enum
-# column while the exact ProviderOutcome is written losslessly to
-# provider_requests.response_body and audit_events.detail.
-_ENUM_FALLBACK = "TIMEOUT"
-
+# One enum member per real provider outcome (ADR-014). The exact ProviderOutcome
+# is still mirrored into response_body/audit detail for callers that want it
+# without a column lookup.
 _REQUEST_OUTCOME = {
     ProviderOutcome.ACCEPTED: "ACCEPTED",
     ProviderOutcome.DUPLICATE_REFERENCE: "DUPLICATE_REFERENCE",
     ProviderOutcome.REJECTED: "REJECTED",
     ProviderOutcome.TRANSPORT_ERROR: "TRANSPORT_ERROR",
     ProviderOutcome.TIMEOUT: "TIMEOUT",
-    ProviderOutcome.PROVIDER_ERROR: _ENUM_FALLBACK,
-    ProviderOutcome.RATE_LIMITED: _ENUM_FALLBACK,
-    ProviderOutcome.UNPARSEABLE: _ENUM_FALLBACK,
-    ProviderOutcome.AUTH_ERROR: _ENUM_FALLBACK,
-    ProviderOutcome.UNKNOWN: _ENUM_FALLBACK,
+    ProviderOutcome.PROVIDER_ERROR: "PROVIDER_ERROR",
+    ProviderOutcome.RATE_LIMITED: "RATE_LIMITED",
+    ProviderOutcome.UNPARSEABLE: "UNPARSEABLE",
+    ProviderOutcome.AUTH_ERROR: "AUTH_ERROR",
+    ProviderOutcome.UNKNOWN: "UNKNOWN",
 }
 
 _ATTEMPT_STATE = {
@@ -463,8 +459,14 @@ def settle_dispatch(
     *,
     fencing_token: int,
     worker_id: str | None = None,
+    expected_state: CaseState = CaseState.EXECUTING,
 ) -> DispatchResult:
-    """TXN 2: no network access here."""
+    """TXN 2: no network access here.
+
+    `expected_state` is EXECUTING for a normal dispatch. A bounded same-key
+    re-POST during reconciliation settles from RECONCILING instead, reusing
+    this mapping rather than duplicating it (ADR-013).
+    """
     outcome = result.outcome
     target = case_target_for(outcome)
 
@@ -496,7 +498,7 @@ def settle_dispatch(
         applied = fenced_transition(
             conn,
             prepared.case_id,
-            CaseState.EXECUTING,
+            expected_state,
             target,
             fencing_token,
             f"provider_{outcome.value.lower()}",
@@ -516,8 +518,8 @@ def settle_dispatch(
 def _finish_request(
     conn: psycopg.Connection, prepared: Prepared, result: CreateLinkResult
 ) -> None:
-    # The exact ProviderOutcome is preserved here even when the enum column
-    # collapses it (ADR-010). Nothing downstream needs to re-derive it.
+    # The exact ProviderOutcome is mirrored here as well as in the enum column,
+    # so a reader never has to re-derive it from http_status.
     body: dict[str, Any] = {"provider_outcome": result.outcome.value}
     if result.response_body is not None:
         body["response"] = result.response_body

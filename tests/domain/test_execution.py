@@ -441,27 +441,30 @@ def test_mapping_is_total_over_provider_outcomes() -> None:
         assert case_target_for(outcome)
 
 
-@pytest.mark.parametrize(
-    "outcome",
-    [
-        ProviderOutcome.PROVIDER_ERROR,
-        ProviderOutcome.RATE_LIMITED,
-        ProviderOutcome.UNPARSEABLE,
-        ProviderOutcome.AUTH_ERROR,
-        ProviderOutcome.UNKNOWN,
-    ],
-)
-def test_collapsed_outcomes_preserve_exact_value(
+@pytest.mark.parametrize("outcome", list(ProviderOutcome))
+def test_every_outcome_records_its_own_enum_value(
     conn: psycopg.Connection, outcome
 ) -> None:
-    """ADR-010: the enum collapses, the JSONB does not."""
+    """Migration 019 / ADR-014: no outcome is collapsed onto another any more.
+
+    Replaces the earlier test that pinned ADR-010's temporary collapse onto
+    TIMEOUT. This is the stronger property: a 401 is recorded as AUTH_ERROR,
+    not disguised as a timeout.
+    """
     ids = seed_dispatchable(conn, suffix=f"c{outcome.value}")
 
     _dispatch(conn, ids, StubProvider(outcome))
 
     request = requests_for(conn, ids["case_id"])[0]
-    assert request["outcome"] == "TIMEOUT"
+    assert request["outcome"] == outcome.value
     assert request["response_body"]["provider_outcome"] == outcome.value
+
+
+def test_outcome_enum_values_are_distinct() -> None:
+    """No two ProviderOutcomes share a request_outcome member."""
+    mapped = [request_outcome_for(o) for o in ProviderOutcome]
+
+    assert len(set(mapped)) == len(mapped)
 
 
 def test_audit_detail_carries_exact_outcome(conn: psycopg.Connection) -> None:

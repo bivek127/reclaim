@@ -13,7 +13,7 @@ clause 2 of that list.
 ### Database
 Status: complete.
 
-- 18 versioned migrations in `db/migrations/`, applied by
+- 19 versioned migrations in `db/migrations/`, applied by
   `scripts/apply_migrations.py`.
 - Two roles with different powers: `recovery_app` for ordinary work,
   `recovery_verifier` for the one column that represents money
@@ -105,10 +105,6 @@ both have a safe default:
 | An expired payment link means the customer will never pay | Expiry exposes no terminal-failure signal. A case past its deadline escalates to a human instead. Closing this needs a human abandoning a real checkout page. |
 | Subscription cycle ids are stable | The existing anchor is retained unchanged. Closing this needs a live subscription with two consecutive failed cycles. |
 
----
-
-## In review
-
 ### Execution and idempotency
 Status: complete, verified against real PostgreSQL.
 
@@ -127,6 +123,32 @@ Boundaries held:
 - An unknown outcome becomes `AMBIGUOUS` and never a failure (contract 3).
 - One open action per case and one open attempt per action, enforced by the
   partial unique indexes rather than by application checks (contract 4).
+
+---
+
+## In review
+
+### Reconciliation
+Status: complete, verified against real PostgreSQL.
+
+`reclaim/domain/reconciliation.py` claims an ambiguous case, re-queries the
+provider under the persisted reference, classifies the evidence, and settles
+under fencing. Two rounds, each prepare → commit → network → settle.
+
+The evidence model is the point of the component — "not found" is not globally
+equivalent to failure:
+
+| Provider says | Local attempt was | Result |
+|---|---|---|
+| Found, any status | any | adopt it; the case is waiting on the customer |
+| Not found | the request provably went out | confirmed failure |
+| Not found | the request may never have left | bounded re-send under the *same* key |
+| No usable answer | any | stay ambiguous and poll again — silence is not evidence |
+
+The re-send adds no action row, no attempt row, and no budget: it retries the
+same mechanism under the same key, so the one-open-mechanism invariant holds. A
+new idempotency key is never minted during reconciliation. No link status is
+treated as proof of non-payment.
 
 ---
 
