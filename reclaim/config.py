@@ -42,6 +42,10 @@ _OPERATIONAL_DEFAULTS: dict[str, int | str] = {
     "sweeper_batch_size": 100,
     "sweeper_interval_seconds": 15,
     "ttl_expiry_interval_seconds": 60,
+    "ollama_host": "127.0.0.1",
+    "ollama_port": 11434,
+    "ollama_model": "gemma3:12b",
+    "ollama_timeout_seconds": 20,
 }
 
 _OPERATIONAL_INT_KEYS = frozenset(
@@ -175,3 +179,16 @@ def load_operational(path: Path | None = None) -> dict[str, int | str]:
 
 def lease_seconds_for(work: str) -> int:
     return LEASE_SECONDS[work]
+
+
+def load_ollama_config(path: Path | None = None):
+    """Ollama host/model/timeout from operational.yaml. Lazy-import client type."""
+    from reclaim.llm.client import OllamaConfig
+
+    values = load_operational(path)
+    return OllamaConfig(
+        host=str(values["ollama_host"]),
+        port=int(values["ollama_port"]),
+        model=str(values["ollama_model"]),
+        timeout_seconds=int(values["ollama_timeout_seconds"]),
+    )

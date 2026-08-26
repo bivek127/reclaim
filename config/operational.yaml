@@ -29,3 +29,9 @@ payment_link_ttl_seconds: 3600
 reconciliation_interval_seconds: 30
 reconciliation_max_polls: 20
 reconciliation_max_posts_per_attempt: 3
+
+# Ollama diagnosis (§9 / §20). Application startup must not require Ollama.
+ollama_host: 127.0.0.1
+ollama_port: 11434
+ollama_model: gemma3:12b
+ollama_timeout_seconds: 20

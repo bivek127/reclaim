@@ -33,6 +33,13 @@ from reclaim.domain.reconciliation import (
 from reclaim.domain.lifecycle import create_obligation_and_case
 from reclaim.domain.sweeper import expire_ttl, sweep_expired_leases
 from reclaim.domain.transitions import TransitionIllegal, transition
+from reclaim.domain.diagnosis import (
+    DiagnosisBlocked,
+    DiagnosisResult,
+    diagnose_case,
+    diagnose_once,
+    load_trusted_context,
+)
 from reclaim.domain.policy import (
     ApplyResult,
     PolicyBlocked,
@@ -90,6 +97,11 @@ __all__ = [
     "reconcile_once",
     "expire_ttl",
     "sweep_expired_leases",
+    "DiagnosisBlocked",
+    "DiagnosisResult",
+    "diagnose_case",
+    "diagnose_once",
+    "load_trusted_context",
     "ApplyResult",
     "PolicyBlocked",
     "PolicyDecision",

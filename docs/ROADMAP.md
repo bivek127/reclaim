@@ -184,6 +184,22 @@ One thing callers must supply: whether the customer has conflicting payment
 history. The formula is defined, but no schema mapping for it is specified yet,
 so it is an explicit input rather than something inferred from the database.
 
+### LLM diagnosis
+Status: complete, verified against real PostgreSQL — including with the model
+server stopped.
+
+- `reclaim/llm/` — a strict response-schema validator that rejects unknown
+  fields, the model client boundary, a prompt builder that isolates untrusted
+  data, and a deterministic failure-code → cause map.
+- `reclaim/domain/diagnosis.py` — the model call happens outside the database
+  transaction; the diagnosis, the transition, and the audit row commit together.
+
+The model is advisory and structurally cannot move money: no field in its
+response schema can populate an amount, an identifier, or a destination
+(contract 5). Its recommended action does not bypass the policy table. If the
+model is unreachable the deterministic fallback runs and the workflow
+continues — which is the only way to know the fallback is real.
+
 ---
 
 ## Not built, on purpose
