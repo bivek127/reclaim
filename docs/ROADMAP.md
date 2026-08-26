@@ -13,7 +13,7 @@ clause 2 of that list.
 ### Database
 Status: complete.
 
-- 20 versioned migrations in `db/migrations/`, applied by
+- 21 versioned migrations in `db/migrations/`, applied by
   `scripts/apply_migrations.py`.
 - Two roles with different powers: `recovery_app` for ordinary work,
   `recovery_verifier` for the one column that represents money
@@ -212,6 +212,41 @@ breaker as an automated recovery (contract 10). Review never creates attempts or
 provider requests, never moves a case into execution, never calls a provider,
 and never increments the attempt count. There is no side channel that moves
 money.
+
+### Simulator
+Status: complete.
+
+`reclaim/domain/simulator.py` evaluates recovery outcomes across a control and a
+treatment arm over a corpus of real cases. It reads those cases and writes only
+its own `sim_runs` / `sim_outcomes` tables — it creates no case, mutates none,
+transitions none, takes no lease, and imports nothing from the provider layer.
+
+Outcome probability depends only on pre-decision case features, the fixed action
+type, externally sourced per-action rates stored with the run, and a shared
+baseline applied identically to both arms. It **never** depends on the model's
+confidence or reasoning (contract 11). That is enforced three ways, strongest
+first:
+
+1. `sim_outcomes` has no column for any model-generated value. The dependency is
+   not merely forbidden, it is unrepresentable.
+2. Feature extraction takes a case record and **no database connection**, so it
+   cannot reach the diagnoses table at all.
+3. The diagnosed cause is never read; the failure code comes from the original
+   provider payload instead.
+
+A fixed seed reproduces a run exactly — outcomes and reported metrics both.
+Each outcome is a hash of `(seed, case_id, arm)` rather than a draw from a
+shared stream, so adding or reordering cases cannot change another case's
+result.
+
+**Research values ship unset.** The baseline and per-action rates must be
+externally sourced and cited; those citations do not exist in this repository,
+and `config/simulator.yaml` therefore fails to load with a clear error rather
+than falling back on a plausible-looking guess. A run cannot proceed on invented
+numbers. The four pre-decision features are recorded, not weighted — no
+defensible empirical weights exist for them.
+
+---
 
 ---
 

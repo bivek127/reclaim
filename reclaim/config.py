@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 POLICY_PATH = ROOT / "config" / "policy.yaml"
@@ -149,6 +150,143 @@ def load_policy_config(path: Path | None = None) -> PolicyConfig:
         review_ttl_ms=ints["review_ttl_ms"],
         breaker_failure_threshold=ints["breaker_failure_threshold"],
         breaker_reset_seconds=ints["breaker_reset_seconds"],
+    )
+
+
+SIMULATOR_PATH = ROOT / "config" / "simulator.yaml"
+
+SIM_MODEL_BASELINE_PLUS_UPLIFT = "baseline_plus_uplift"
+SIM_MODEL_DIRECT_RATES = "direct_rates"
+SIM_MODELS = frozenset({SIM_MODEL_BASELINE_PLUS_UPLIFT, SIM_MODEL_DIRECT_RATES})
+
+# Values that mean "deliberately unset" rather than a number.
+_UNSET = frozenset({"", "null", "none", "~"})
+
+
+class SimulatorConfigError(ValueError):
+    """Invalid, incomplete, or unsourced experiment configuration."""
+
+
+@dataclass(frozen=True)
+class SimulatorConfig:
+    """`config/simulator.yaml`. Research values are required AND must be cited.
+
+    Per-action rates must be externally sourced and cited. This dataclass
+    cannot be constructed without both the number and its citation, so a run on
+    unsourced values fails at load rather than producing an authoritative-looking
+    result from an invented parameter.
+    """
+
+    seed: int
+    n_per_arm: int
+    model: str
+    organic_baseline_rate: float
+    organic_baseline_source: str
+    action_params: dict[str, float]
+    action_sources: dict[str, str]
+    amount_band_bounds: tuple[int, ...]
+    feature_timezone: str
+    history_window_days: int
+
+    def params_for_run(self) -> dict[str, Any]:
+        """Exactly what is persisted to `sim_runs.params`.
+
+        Every number travels with its citation, so a stored run carries its own
+        provenance and a reader never has to trust the config file's later state.
+        """
+        return {
+            "model": self.model,
+            "organic_baseline": {
+                "rate": self.organic_baseline_rate,
+                "source": self.organic_baseline_source,
+            },
+            "action_params": {
+                action: {
+                    "value": self.action_params[action],
+                    "source": self.action_sources[action],
+                }
+                for action in sorted(self.action_params)
+            },
+            "feature_encoding": {
+                "amount_band_bounds": list(self.amount_band_bounds),
+                "timezone": self.feature_timezone,
+                "history_window_days": self.history_window_days,
+                "weighted": False,
+            },
+        }
+
+
+def _sim_required(values: dict[str, str], key: str) -> str:
+    raw = values.get(key, "")
+    if raw.strip().lower() in _UNSET:
+        raise SimulatorConfigError(
+            f"{key} is unset in config/simulator.yaml. §15 requires externally "
+            "sourced, cited values; a run must not proceed on an invented number."
+        )
+    return raw
+
+
+def _sim_rate(values: dict[str, str], key: str) -> float:
+    # _sim_required raises SimulatorConfigError, which subclasses ValueError --
+    # so it must run outside the try, or the precise "unset" message is masked
+    # by the float-conversion handler below.
+    raw = _sim_required(values, key)
+    try:
+        rate = float(raw)
+    except ValueError as exc:
+        raise SimulatorConfigError(f"{key} is not a number") from exc
+    if not 0.0 <= rate <= 1.0:
+        raise SimulatorConfigError(f"{key}={rate} is not a probability in [0, 1]")
+    return rate
+
+
+def load_simulator_config(path: Path | None = None) -> SimulatorConfig:
+    target = path or SIMULATOR_PATH
+    if not target.exists():
+        raise SimulatorConfigError(f"missing experiment configuration: {target}")
+
+    values = {key: raw for key, raw in _scalar_lines(target)}
+
+    model = _sim_required(values, "model")
+    if model not in SIM_MODELS:
+        raise SimulatorConfigError(
+            f"model {model!r} is not one of {sorted(SIM_MODELS)}"
+        )
+
+    try:
+        seed = int(_sim_required(values, "seed"))
+        n_per_arm = int(_sim_required(values, "n_per_arm"))
+        history_window_days = int(_sim_required(values, "history_window_days"))
+    except ValueError as exc:
+        raise SimulatorConfigError(f"non-integer experiment parameter: {exc}") from exc
+
+    if n_per_arm <= 0:
+        raise SimulatorConfigError("n_per_arm must be positive")
+    if history_window_days <= 0:
+        raise SimulatorConfigError("history_window_days must be positive")
+
+    bounds_raw = _sim_required(values, "amount_band_bounds")
+    try:
+        bounds = tuple(int(part) for part in bounds_raw.split(",") if part.strip())
+    except ValueError as exc:
+        raise SimulatorConfigError("amount_band_bounds must be integers") from exc
+    if list(bounds) != sorted(bounds) or len(set(bounds)) != len(bounds):
+        raise SimulatorConfigError("amount_band_bounds must be strictly ascending")
+
+    action = "CREATE_PAYMENT_LINK"
+    return SimulatorConfig(
+        seed=seed,
+        n_per_arm=n_per_arm,
+        model=model,
+        organic_baseline_rate=_sim_rate(values, "organic_baseline_rate"),
+        organic_baseline_source=_sim_required(values, "organic_baseline_source"),
+        action_params={action: _sim_rate(values, "action_param_create_payment_link")},
+        action_sources={
+            action: _sim_required(values, "action_param_create_payment_link_source")
+        },
+        amount_band_bounds=bounds,
+        feature_timezone=_sim_required(values, "feature_timezone"),
+        history_window_days=history_window_days,
     )
 
 

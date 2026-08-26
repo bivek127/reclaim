@@ -72,6 +72,21 @@ from reclaim.domain.verification import (
 )
 
 __all__ = [
+    "ARM_CONTROL",
+    "ARM_TREATMENT",
+    "CaseRecord",
+    "SimMetrics",
+    "SimOutcome",
+    "SimRunResult",
+    "SimulationBlocked",
+    "build_outcomes",
+    "compute_metrics",
+    "load_run_outcomes",
+    "metrics_for_run",
+    "extract_features",
+    "load_corpus",
+    "run_simulation",
+    "select_cases",
     "Anchor",
     "AnchorKind",
     "EventResolution",
