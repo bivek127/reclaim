@@ -96,6 +96,7 @@ def test_execution_lease_covers_two_http_timeouts() -> None:
         "enrichment": 30,
         "diagnosis": 90,
         "policy": 90,
+        "review": 90,
         "execution": 60,
         "reconciliation": 45,
         "verification": 45,

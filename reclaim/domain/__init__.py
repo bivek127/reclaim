@@ -50,6 +50,17 @@ from reclaim.domain.policy import (
     evaluate_once,
     load_policy_inputs,
 )
+from reclaim.domain.review import (
+    ReviewBlocked,
+    ReviewEvidence,
+    ReviewResult,
+    approve_once,
+    approve_review,
+    expire_reviews,
+    load_review_evidence,
+    on_entered_escalated,
+    reject_review,
+)
 from reclaim.domain.verification import (
     VerificationBlocked,
     VerifyResult,
@@ -110,6 +121,15 @@ __all__ = [
     "evaluate",
     "evaluate_once",
     "load_policy_inputs",
+    "ReviewBlocked",
+    "ReviewEvidence",
+    "ReviewResult",
+    "approve_once",
+    "approve_review",
+    "expire_reviews",
+    "load_review_evidence",
+    "on_entered_escalated",
+    "reject_review",
     "VerificationBlocked",
     "VerifyResult",
     "compare",

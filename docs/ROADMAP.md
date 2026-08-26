@@ -200,6 +200,19 @@ response schema can populate an amount, an identifier, or a destination
 model is unreachable the deterministic fallback runs and the workflow
 continues — which is the only way to know the fallback is real.
 
+### Human review
+Status: complete, verified against real PostgreSQL.
+
+`reclaim/domain/review.py` — pending entry, an evidence loader, approve, reject,
+and an expiry job.
+
+Approval creates a **proposed** action and nothing else. The executor still
+performs the dispatch, under the same attempt budget, idempotency, and circuit
+breaker as an automated recovery (contract 10). Review never creates attempts or
+provider requests, never moves a case into execution, never calls a provider,
+and never increments the attempt count. There is no side channel that moves
+money.
+
 ---
 
 ## Not built, on purpose

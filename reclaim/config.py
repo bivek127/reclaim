@@ -57,6 +57,7 @@ LEASE_SECONDS = {
     "enrichment": 30,
     "diagnosis": 90,
     "policy": 90,
+    "review": 90,
     "execution": 60,
     "reconciliation": 45,
     "verification": 45,

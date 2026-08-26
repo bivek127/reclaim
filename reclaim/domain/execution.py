@@ -174,22 +174,60 @@ def prepare_dispatch(
     worker_id: str | None = None,
     idempotency_key: str | None = None,
 ) -> Prepared:
-    """TXN 1: commits before any network call. No provider access here."""
+    """TXN 1: commits before any network call. No provider access here.
+
+    Entry states (ADR-015 decision A):
+      ACTION_READY — automated path
+      ESCALATED — only when an open PROPOSED action exists; never merely because
+                  the case is ESCALATED.
+    """
     key = idempotency_key or new_idempotency_key()
 
     halted = False
 
     with conn.transaction():
+        case_row = conn.execute(
+            """
+            SELECT state FROM recovery_cases
+             WHERE id = %s
+             FOR UPDATE
+            """,
+            (case_id,),
+        ).fetchone()
+        if case_row is None:
+            raise DispatchAborted(case_id)
+        from_state = CaseState(str(case_row[0]))
+
+        if from_state is CaseState.ESCALATED:
+            proposed = conn.execute(
+                """
+                SELECT 1 FROM recovery_actions
+                 WHERE case_id = %s AND status = 'PROPOSED'
+                 LIMIT 1
+                """,
+                (case_id,),
+            ).fetchone()
+            if proposed is None:
+                raise DispatchAborted(case_id)
+        elif from_state is not CaseState.ACTION_READY:
+            raise DispatchAborted(case_id)
+
         # 1. Breaker gate first, under FOR UPDATE so concurrent workers serialise.
         #    The gate must precede the budget claim: an attempt that consumed
         #    budget and never dispatched would waste the case's limited retries
         #    on nothing. Ordering it after would also force a rollback that
         #    discards the HALTED transition itself, making the halt and the
         #    unspent budget mutually exclusive.
-        state = breaker_mod.read_breaker(conn, for_update=True)
-        if state.is_open:
-            _halt_for_breaker(conn, case_id, fencing_token, worker_id)
-            halted = True
+        #
+        #    ADR-015 decision B: ESCALATED + OPEN → abort with no state change
+        #    (no HALTED). ACTION_READY + OPEN → HALTED as before.
+        breaker = breaker_mod.read_breaker(conn, for_update=True)
+        if breaker.is_open:
+            if from_state is CaseState.ACTION_READY:
+                _halt_for_breaker(conn, case_id, fencing_token, worker_id)
+                halted = True
+            else:
+                raise breaker_mod.BreakerOpen(case_id)
 
         if not halted:
             # 2. Claim the attempt budget: its row lock serialises concurrent
@@ -259,7 +297,7 @@ def prepare_dispatch(
             applied = transition(
                 conn,
                 case_id,
-                CaseState.ACTION_READY,
+                from_state,
                 CaseState.EXECUTING,
                 fencing_token,
                 "execution_dispatch",

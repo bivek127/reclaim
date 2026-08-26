@@ -226,6 +226,17 @@ def apply_policy(
                 worker_id=worker_id,
                 fencing_token=fencing_token,
             )
+            # Every transition into ESCALATED creates a PENDING review.
+            # Reuse this policy_decisions row -- no second provenance record.
+            if target is CaseState.ESCALATED:
+                from reclaim.domain.review import on_entered_escalated
+
+                on_entered_escalated(
+                    inner,
+                    case_id,
+                    reason_code=decision.reason_code,
+                    policy_decision_id=decision_id,
+                )
 
         applied = fenced_transition(
             conn,

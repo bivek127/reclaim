@@ -2,6 +2,7 @@
 lease_seconds:
   enrichment: 30
   diagnosis: 90
+  review: 90
   execution: 60
   reconciliation: 45
   verification: 45

@@ -182,6 +182,26 @@ def expire_ttl(
                 skipped += 1
                 continue
             new_token = bumped[0]
+            def _ttl_side_effects(
+                inner: psycopg.Connection,
+                *,
+                cid: int = case_id,
+                dest: CaseState = destination,
+            ) -> None:
+                if dest is CaseState.ESCALATED:
+                    from reclaim.domain.review import (
+                        REASON_TTL_EXHAUSTED,
+                        on_entered_escalated,
+                    )
+
+                    # Escalation provenance + PENDING review (ADR-015 decision C).
+                    on_entered_escalated(
+                        inner,
+                        cid,
+                        reason_code=REASON_TTL_EXHAUSTED,
+                        policy_decision_id=None,
+                    )
+
             applied = transition(
                 conn,
                 case_id,
@@ -189,6 +209,7 @@ def expire_ttl(
                 destination,
                 new_token,
                 "ttl_exhausted",
+                side_effects=_ttl_side_effects,
             )
             if applied:
                 expired += 1
