@@ -5,6 +5,18 @@ from reclaim.domain.anchors import (
     ResolvedEvent,
     resolve_event,
 )
+from reclaim.domain.breaker import BreakerOpen, BreakerState, read_breaker, record_execution_outcome
+from reclaim.domain.execution import (
+    BudgetExhausted,
+    DispatchAborted,
+    DispatchResult,
+    Prepared,
+    call_provider,
+    dispatch,
+    new_idempotency_key,
+    prepare_dispatch,
+    settle_dispatch,
+)
 from reclaim.domain.leases import Claim, claim_case, fenced_transition
 from reclaim.domain.lifecycle import create_obligation_and_case
 from reclaim.domain.sweeper import expire_ttl, sweep_expired_leases
@@ -22,6 +34,19 @@ __all__ = [
     "Claim",
     "claim_case",
     "fenced_transition",
+    "BreakerOpen",
+    "BreakerState",
+    "read_breaker",
+    "record_execution_outcome",
+    "BudgetExhausted",
+    "DispatchAborted",
+    "DispatchResult",
+    "Prepared",
+    "call_provider",
+    "dispatch",
+    "new_idempotency_key",
+    "prepare_dispatch",
+    "settle_dispatch",
     "expire_ttl",
     "sweep_expired_leases",
 ]

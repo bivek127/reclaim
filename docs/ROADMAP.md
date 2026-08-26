@@ -63,10 +63,6 @@ Time spent `HALTED` does not consume a case's TTL (contract 8).
 
 ---
 
----
-
-## In review
-
 ### Provider adapter (Razorpay)
 Status: implemented and contract-verified as far as a test account can reach.
 
@@ -108,6 +104,40 @@ both have a safe default:
 |---|---|
 | An expired payment link means the customer will never pay | Expiry exposes no terminal-failure signal. A case past its deadline escalates to a human instead. Closing this needs a human abandoning a real checkout page. |
 | Subscription cycle ids are stable | The existing anchor is retained unchanged. Closing this needs a live subscription with two consecutive failed cycles. |
+
+---
+
+## In review
+
+### Execution and idempotency
+Status: complete, verified against real PostgreSQL.
+
+- `reclaim/domain/execution.py` — commit, then call the provider, then commit
+  the outcome. The idempotency key is persisted **before** any network call
+  (contract 2), so a crash can never leave a charge the system cannot recognise.
+- `reclaim/domain/breaker.py` — reads the dispatch gate and counts consecutive
+  failures. It never writes the breaker's state.
+
+Boundaries held:
+
+- The provider call sits outside every transaction.
+- Every row write rides in `transition()`'s side effects, so a stale token
+  writes nothing. There is no second state machine and no second lease
+  mechanism.
+- An unknown outcome becomes `AMBIGUOUS` and never a failure (contract 3).
+- One open action per case and one open attempt per action, enforced by the
+  partial unique indexes rather than by application checks (contract 4).
+
+---
+
+## Not built, on purpose
+
+**The breaker monitor.** Opening and resetting the circuit breaker belongs to a
+monitor job that does not exist. The executor reads the gate and counts
+failures, but never writes the breaker's state.
+
+*Consequence, stated plainly:* the circuit breaker cannot open or reset in a
+running system. Failures accumulate and nothing acts on them.
 
 ---
 

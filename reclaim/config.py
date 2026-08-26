@@ -9,9 +9,20 @@ OPERATIONAL_PATH = ROOT / "config" / "operational.yaml"
 _DEFAULTS = {
     "max_attempts": 2,
     "ttl_budget_ms": 72 * 60 * 60 * 1000,
+    "review_ttl_ms": 24 * 60 * 60 * 1000,
+    "breaker_failure_threshold": 5,
+    "breaker_reset_seconds": 120,
 }
 
-_POLICY_INT_KEYS = frozenset({"max_attempts", "ttl_budget_ms"})
+_POLICY_INT_KEYS = frozenset(
+    {
+        "max_attempts",
+        "ttl_budget_ms",
+        "review_ttl_ms",
+        "breaker_failure_threshold",
+        "breaker_reset_seconds",
+    }
+)
 
 _OPERATIONAL_DEFAULTS: dict[str, int | str] = {
     "provider_http_timeout_seconds": 30,

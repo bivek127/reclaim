@@ -3,3 +3,8 @@ policy_version: "1.0"
 max_attempts: 2
 ttl_budget_ms: 259200000  # 72h
 review_ttl_ms: 86400000   # 24h
+
+# Circuit breaker (19.2 defaults). The executor reads these; only the
+# 14 breaker-monitor job acts on them (ADR-011).
+breaker_failure_threshold: 5
+breaker_reset_seconds: 120
