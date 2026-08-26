@@ -13,12 +13,17 @@ observes an execution outcome. See ADR-011.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 from reclaim.provider.contract import UNKNOWN_OUTCOMES, ProviderOutcome
 
 BREAKER_ID = 1
+
+EVENT_BREAKER_OPENED = "breaker_opened"
+EVENT_BREAKER_RESET = "breaker_reset"
 
 # Outcomes that count against breaker health. The breaker is an
 # infrastructure-health signal, not a financial verdict: an outage produces
@@ -109,3 +114,79 @@ def _set_failures(conn: psycopg.Connection, *, reset: bool) -> int:
     ).fetchone()
     assert row is not None
     return int(row[0])
+
+
+def set_breaker_state(
+    conn: psycopg.Connection,
+    *,
+    open_breaker: bool,
+    reason_code: str,
+    trip_cause: dict[str, Any] | None = None,
+    reset_seconds: int | None = None,
+    worker_id: str | None = None,
+) -> bool:
+    """Change breaker state and audit it in the SAME transaction.
+
+    The audit INSERT is not optional and not separable: state cannot move
+    without evidence, because both statements are in one transaction and the
+    caller cannot reach the UPDATE without going through this function.
+
+    ADR-011 assigns breaker *state* changes to a monitor job that is not yet
+    built; no other production code calls this today, so the executor counts
+    failures and reads the gate but never opens it. This function exists so
+    that whoever builds the monitor cannot open the breaker unaudited.
+
+    Returns False when the requested state is already in effect (no-op, no
+    event) -- a repeated open must not manufacture a second opening in history.
+    """
+    target = "OPEN" if open_breaker else "CLOSED"
+    row = conn.execute(
+        """
+        UPDATE circuit_breaker
+           SET state = %s,
+               opened_at = CASE WHEN %s THEN now() ELSE NULL END,
+               reset_after = CASE WHEN %s AND %s::int IS NOT NULL
+                                  THEN now() + (%s::text || ' seconds')::interval
+                                  ELSE NULL END,
+               trip_cause = %s::jsonb,
+               consecutive_failures = CASE WHEN %s THEN consecutive_failures
+                                           ELSE 0 END
+         WHERE id = %s
+           AND state <> %s
+        RETURNING state::text, consecutive_failures
+        """,
+        (
+            target,
+            open_breaker,
+            open_breaker,
+            reset_seconds,
+            str(reset_seconds) if reset_seconds is not None else None,
+            Jsonb(trip_cause) if trip_cause is not None else None,
+            open_breaker,
+            BREAKER_ID,
+            target,
+        ),
+    ).fetchone()
+    if row is None:
+        return False
+
+    conn.execute(
+        """
+        INSERT INTO audit_events (event_type, worker_id, reason_code, detail)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (
+            EVENT_BREAKER_OPENED if open_breaker else EVENT_BREAKER_RESET,
+            worker_id,
+            reason_code,
+            Jsonb(
+                {
+                    "state": row[0],
+                    "consecutive_failures": int(row[1]),
+                    "trip_cause": trip_cause,
+                    "reset_seconds": reset_seconds,
+                }
+            ),
+        ),
+    )
+    return True

@@ -137,28 +137,71 @@ def test_app_role_retains_its_legitimate_columns(
     )
 
 
-def test_forged_verification_still_cannot_yield_app_revenue(
+def test_app_role_cannot_insert_verifications(
     conn: psycopg.Connection, app_conn: psycopg.Connection
 ) -> None:
-    """The strongest I8 statement: barrier 1 holds even against a forged row.
+    """The app role cannot fabricate verification evidence.
 
-    Migration 018's blanket `GRANT ... ON ALL TABLES` means recovery_app CAN
-    insert a verification row -- see test_app_role_can_insert_verifications
-    below and ADR-015 for that finding. It does not matter: the app then
-    satisfies barriers 2 and 3 completely and is *still* refused the revenue
-    write by the column privilege, which is the barrier that cannot be
-    worked around from inside the app role.
+    Migration 018's blanket GRANT ... ON ALL TABLES had left INSERT open to
+    recovery_app, which made guard_recovered_amount forgeable from inside the
+    application role. Migration 021 revokes it.
     """
     ids = _paid_case(conn)
 
-    app_conn.execute(
-        """
-        INSERT INTO verifications (case_id, attempt_id, agrees, verified_amount_minor)
-        VALUES (%s, %s, true, %s)
-        """,
-        (ids["case_id"], ids["attempt_id"], AMOUNT),
-    )
-    app_conn.execute(
+    with pytest.raises(InsufficientPrivilege):
+        app_conn.execute(
+            """
+            INSERT INTO verifications (case_id, attempt_id, agrees, verified_amount_minor)
+            VALUES (%s, %s, true, %s)
+            """,
+            (ids["case_id"], ids["attempt_id"], AMOUNT),
+        )
+
+
+def test_app_role_cannot_mutate_existing_verifications(
+    conn: psycopg.Connection, app_conn: psycopg.Connection
+) -> None:
+    """Revoking INSERT alone would leave UPDATE as an equivalent forgery path."""
+    ids = _paid_case(conn)
+    _agreeing_verification(conn, ids)
+
+    with pytest.raises(InsufficientPrivilege):
+        app_conn.execute(
+            "UPDATE verifications SET verified_amount_minor = %s WHERE case_id = %s",
+            (AMOUNT * 2, ids["case_id"]),
+        )
+    with pytest.raises(InsufficientPrivilege):
+        app_conn.execute(
+            "DELETE FROM verifications WHERE case_id = %s", (ids["case_id"],)
+        )
+
+
+def test_app_role_retains_read_access_to_verifications(
+    conn: psycopg.Connection, app_conn: psycopg.Connection
+) -> None:
+    """SELECT is deliberately kept -- review evidence assembly reads this table."""
+    ids = _paid_case(conn)
+    _agreeing_verification(conn, ids)
+
+    row = app_conn.execute(
+        "SELECT count(*) FROM verifications WHERE case_id = %s", (ids["case_id"],)
+    ).fetchone()
+
+    assert row is not None and row[0] == 1
+
+
+def test_barrier_one_holds_independently_of_barrier_two(
+    conn: psycopg.Connection, app_conn: psycopg.Connection
+) -> None:
+    """I8 never depended on barrier 2, and still does not.
+
+    Even with a legitimate agreeing verification present and the case in
+    VERIFIED_RECOVERED -- barriers 2 and 3 both satisfied -- the column
+    privilege alone refuses the app role the revenue write.
+    """
+    ids = _paid_case(conn)
+    _agreeing_verification(conn, ids)
+    conn.execute(
         "UPDATE recovery_cases SET state = 'VERIFIED_RECOVERED', active_since = NULL "
         "WHERE id = %s",
         (ids["case_id"],),
@@ -171,27 +214,6 @@ def test_forged_verification_still_cannot_yield_app_revenue(
         )
 
     assert _revenue(conn, ids["case_id"]) == 0
-
-
-def test_app_role_can_insert_verifications(
-    conn: psycopg.Connection, app_conn: psycopg.Connection
-) -> None:
-    """Documents a real over-grant deliberately left in place for now.
-
-    The intended grants list INSERT on verifications for the verifier only,
-    but migration 018 already granted INSERT on ALL TABLES to recovery_app,
-    and 018 does not revoke it. Pinned so the behaviour is visible rather
-    than surprising; closing it is a one-line REVOKE (ADR-015).
-    """
-    ids = _paid_case(conn)
-
-    app_conn.execute(
-        """
-        INSERT INTO verifications (case_id, attempt_id, agrees, verified_amount_minor)
-        VALUES (%s, %s, false, 0)
-        """,
-        (ids["case_id"], ids["attempt_id"]),
-    )
 
 
 # ---- migration 020: the verifier can now run the real flow ---------------

@@ -13,7 +13,7 @@ clause 2 of that list.
 ### Database
 Status: complete.
 
-- 21 versioned migrations in `db/migrations/`, applied by
+- 22 versioned migrations in `db/migrations/`, applied by
   `scripts/apply_migrations.py`.
 - Two roles with different powers: `recovery_app` for ordinary work,
   `recovery_verifier` for the one column that represents money
@@ -247,6 +247,26 @@ numbers. The four pre-decision features are recorded, not weighted — no
 defensible empirical weights exist for them.
 
 ---
+
+### Audit and reconstruction
+Status: complete.
+
+- `reclaim/audit/` — `load_case_audit_trail` is the package's only database
+  access; reconstruction is a pure fold that imports no driver, names no table,
+  and takes no connection. Enforced by tests that inspect the module, not by
+  convention.
+- Producers cover the whole lifecycle: case created and deduplicated, diagnosis,
+  policy, provider request and response (including a response received but not
+  applied because the worker's token had gone stale), verification, review,
+  breaker open and reset, lease claim and release, rejected stale writes, and
+  one state transition per `transition()`.
+
+A case's story can be rebuilt from `audit_events` alone — obligation, action
+types and order, attempts and references, worker and fencing token, model,
+policy version, provider correlation id, state changes with reasons, the
+reviewer's decision, verification, and lease activity. Anything the trail
+cannot supply is **named** in the result rather than returned as a silent
+`None`: absence of evidence is itself evidence.
 
 ---
 

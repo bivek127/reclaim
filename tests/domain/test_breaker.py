@@ -132,3 +132,74 @@ def test_record_outcome_never_writes_state(conn: psycopg.Connection) -> None:
     # Counter cleared, but the state the monitor owns is untouched.
     assert read_breaker(conn).state == "OPEN"
     assert breaker_row(conn)["consecutive_failures"] == 0
+
+
+# ---- stale fencing at the breaker gate ------------------------------------
+
+
+def test_stale_token_halt_writes_no_state(conn: psycopg.Connection) -> None:
+    """A stale token must mutate nothing, breaker open or not."""
+    ids = seed_dispatchable(conn)
+    _open_breaker(conn)
+
+    with pytest.raises(BreakerOpen):
+        prepare_dispatch(
+            conn,
+            ids["case_id"],
+            fencing_token=99,  # stale
+            policy_decision_id=ids["policy_id"],
+            link_ttl_seconds=LINK_TTL_SECONDS,
+            worker_id="stale-worker",
+        )
+
+    assert case_row(conn, ids["case_id"])["state"] == "ACTION_READY"
+    assert case_row(conn, ids["case_id"])["attempt_count"] == 0
+    assert attempts_for(conn, ids["case_id"]) == []
+
+
+def test_stale_token_halt_is_audited(conn: psycopg.Connection) -> None:
+    """A stale token at the breaker gate must still leave a stale_write_rejected row."""
+    ids = seed_dispatchable(conn)
+    _open_breaker(conn)
+
+    with pytest.raises(BreakerOpen):
+        prepare_dispatch(
+            conn,
+            ids["case_id"],
+            fencing_token=99,
+            policy_decision_id=ids["policy_id"],
+            link_ttl_seconds=LINK_TTL_SECONDS,
+            worker_id="stale-worker",
+        )
+
+    row = conn.execute(
+        "SELECT count(*) FROM audit_events WHERE case_id = %s "
+        "AND reason_code = 'stale_write_rejected'",
+        (ids["case_id"],),
+    ).fetchone()
+    assert row is not None and row[0] >= 1
+
+
+def test_current_token_halt_still_transitions_and_audits(
+    conn: psycopg.Connection,
+) -> None:
+    """The fix must not change the ordinary halt path."""
+    ids = seed_dispatchable(conn)
+    _open_breaker(conn)
+
+    with pytest.raises(BreakerOpen):
+        prepare_dispatch(
+            conn,
+            ids["case_id"],
+            fencing_token=0,
+            policy_decision_id=ids["policy_id"],
+            link_ttl_seconds=LINK_TTL_SECONDS,
+        )
+
+    assert case_row(conn, ids["case_id"])["state"] == "HALTED"
+    stale = conn.execute(
+        "SELECT count(*) FROM audit_events WHERE case_id = %s "
+        "AND reason_code = 'stale_write_rejected'",
+        (ids["case_id"],),
+    ).fetchone()
+    assert stale is not None and stale[0] == 0, "a valid halt is not a stale write"

@@ -5,7 +5,15 @@ from reclaim.domain.anchors import (
     ResolvedEvent,
     resolve_event,
 )
-from reclaim.domain.breaker import BreakerOpen, BreakerState, read_breaker, record_execution_outcome
+from reclaim.domain.breaker import (
+    EVENT_BREAKER_OPENED,
+    EVENT_BREAKER_RESET,
+    BreakerOpen,
+    BreakerState,
+    read_breaker,
+    record_execution_outcome,
+    set_breaker_state,
+)
 from reclaim.domain.execution import (
     BudgetExhausted,
     DispatchAborted,
@@ -98,6 +106,9 @@ __all__ = [
     "Claim",
     "claim_case",
     "fenced_transition",
+    "EVENT_BREAKER_OPENED",
+    "EVENT_BREAKER_RESET",
+    "set_breaker_state",
     "BreakerOpen",
     "BreakerState",
     "read_breaker",

@@ -537,3 +537,167 @@ def test_provider_called_exactly_once_per_dispatch(conn: psycopg.Connection) -> 
 
     assert len(provider.calls) == 1
     assert len(requests_for(conn, ids["case_id"])) == 1
+
+
+# ---- executor boundary: RETRY_CHARGE must raise --------------------------
+
+
+def _propose_action(conn, ids, action_type: str) -> int:
+    """A PROPOSED action of an arbitrary type, as human review would leave."""
+    return insert_action(
+        conn, ids["case_id"], ids["policy_id"], status="PROPOSED",
+        action_type=action_type,
+    )
+
+
+def test_retry_charge_proposed_action_raises(conn: psycopg.Connection) -> None:
+    """The executor must raise if handed a RETRY_CHARGE action."""
+    from reclaim.provider.contract import RetryChargeUnsupported
+
+    ids = seed_dispatchable(conn)
+    _propose_action(conn, ids, "RETRY_CHARGE")
+    provider = StubProvider()
+
+    with pytest.raises(RetryChargeUnsupported):
+        _dispatch(conn, ids, provider)
+
+    assert provider.calls == [], "no provider call may happen"
+
+
+def test_retry_charge_is_rejected_before_budget_claim(
+    conn: psycopg.Connection,
+) -> None:
+    from reclaim.provider.contract import RetryChargeUnsupported
+
+    ids = seed_dispatchable(conn)
+    _propose_action(conn, ids, "RETRY_CHARGE")
+    before = case_row(conn, ids["case_id"])["attempt_count"]
+
+    with pytest.raises(RetryChargeUnsupported):
+        _dispatch(conn, ids, StubProvider())
+
+    assert case_row(conn, ids["case_id"])["attempt_count"] == before
+
+
+def test_retry_charge_is_not_promoted_to_live(conn: psycopg.Connection) -> None:
+    from reclaim.provider.contract import RetryChargeUnsupported
+
+    ids = seed_dispatchable(conn)
+    action_id = _propose_action(conn, ids, "RETRY_CHARGE")
+
+    with pytest.raises(RetryChargeUnsupported):
+        _dispatch(conn, ids, StubProvider())
+
+    actions = actions_for(conn, ids["case_id"])
+    assert len(actions) == 1
+    assert actions[0]["id"] == action_id
+    assert actions[0]["status"] == "PROPOSED", "must not be promoted"
+
+
+def test_retry_charge_creates_no_attempt_or_request(
+    conn: psycopg.Connection,
+) -> None:
+    from reclaim.provider.contract import RetryChargeUnsupported
+
+    ids = seed_dispatchable(conn)
+    _propose_action(conn, ids, "RETRY_CHARGE")
+
+    with pytest.raises(RetryChargeUnsupported):
+        _dispatch(conn, ids, StubProvider())
+
+    assert attempts_for(conn, ids["case_id"]) == []
+    assert requests_for(conn, ids["case_id"]) == []
+
+
+def test_retry_charge_leaves_case_state_unchanged(
+    conn: psycopg.Connection,
+) -> None:
+    from reclaim.provider.contract import RetryChargeUnsupported
+
+    ids = seed_dispatchable(conn)
+    _propose_action(conn, ids, "RETRY_CHARGE")
+
+    with pytest.raises(RetryChargeUnsupported):
+        _dispatch(conn, ids, StubProvider())
+
+    assert case_row(conn, ids["case_id"])["state"] == "ACTION_READY"
+
+
+def test_retry_charge_action_type_is_never_rewritten(
+    conn: psycopg.Connection,
+) -> None:
+    """Refuse it; do not silently turn it into a payment link."""
+    from reclaim.provider.contract import RetryChargeUnsupported
+
+    ids = seed_dispatchable(conn)
+    _propose_action(conn, ids, "RETRY_CHARGE")
+
+    with pytest.raises(RetryChargeUnsupported):
+        _dispatch(conn, ids, StubProvider())
+
+    assert actions_for(conn, ids["case_id"])[0]["status"] == "PROPOSED"
+    row = conn.execute(
+        "SELECT action_type FROM recovery_actions WHERE case_id = %s",
+        (ids["case_id"],),
+    ).fetchone()
+    assert row is not None and row[0] == "RETRY_CHARGE"
+
+
+def test_escalate_proposed_action_is_also_refused(
+    conn: psycopg.Connection,
+) -> None:
+    """ESCALATE is a routing verdict, not a dispatchable financial action."""
+    from reclaim.domain.execution import ActionTypeUnsupported
+
+    ids = seed_dispatchable(conn)
+    _propose_action(conn, ids, "ESCALATE")
+    provider = StubProvider()
+
+    with pytest.raises(ActionTypeUnsupported):
+        _dispatch(conn, ids, provider)
+
+    assert provider.calls == []
+    assert attempts_for(conn, ids["case_id"]) == []
+
+
+def test_create_payment_link_proposed_action_still_promotes(
+    conn: psycopg.Connection,
+) -> None:
+    """The guard must not break the legitimate human-review path."""
+    ids = seed_dispatchable(conn)
+    action_id = _propose_action(conn, ids, "CREATE_PAYMENT_LINK")
+
+    result = _dispatch(conn, ids, StubProvider())
+
+    assert result.applied is True
+    actions = actions_for(conn, ids["case_id"])
+    assert len(actions) == 1
+    assert actions[0]["id"] == action_id
+    assert actions[0]["status"] == "LIVE"
+
+
+def test_promote_update_cannot_select_a_forbidden_action(
+    conn: psycopg.Connection,
+) -> None:
+    """Defence in depth: even bypassing the guard, promotion cannot occur.
+
+    Calls _acquire_action directly, which is what prepare_dispatch's guard
+    normally protects. The promote UPDATE's action_type predicate skips the
+    RETRY_CHARGE row, the INSERT fallback runs, and uq_case_one_open_action
+    turns it into a database error rather than a payment link.
+    """
+    from psycopg.errors import UniqueViolation
+
+    from reclaim.domain.execution import _acquire_action
+
+    ids = seed_dispatchable(conn)
+    _propose_action(conn, ids, "RETRY_CHARGE")
+
+    with pytest.raises(UniqueViolation):
+        with conn.transaction():
+            _acquire_action(
+                conn,
+                case_id=ids["case_id"],
+                policy_decision_id=ids["policy_id"],
+                expire_by=2_000_000_000,
+            )

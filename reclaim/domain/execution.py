@@ -33,6 +33,7 @@ from reclaim.provider.contract import (
     Customer,
     PaymentProvider,
     ProviderOutcome,
+    RetryChargeUnsupported,
 )
 
 KEY_PREFIX = "rcv_"
@@ -44,6 +45,8 @@ KEY_BODY_LENGTH = 26
 ACTION_DEADLINE_GRACE = timedelta(minutes=10)
 
 CREATE_PAYMENT_LINK = "CREATE_PAYMENT_LINK"
+# The enum value exists but the executor must never dispatch it.
+ACTION_RETRY_CHARGE = "RETRY_CHARGE"
 OPERATION_CREATE_LINK = "create_payment_link"
 
 OPEN_ACTION_STATUSES = ("PROPOSED", "LIVE", "UNRESOLVED")
@@ -128,6 +131,22 @@ class DispatchAborted(Exception):
         super().__init__(f"dispatch aborted for case {case_id}")
 
 
+class ActionTypeUnsupported(Exception):
+    """The executor was handed an action it must not dispatch.
+
+    RETRY_CHARGE raises RetryChargeUnsupported instead; this covers the rest of
+    the `action_type` enum (ESCALATE), which is a routing verdict rather than a
+    dispatchable financial action.
+    """
+
+    def __init__(self, case_id: int, action_type: str) -> None:
+        self.case_id = case_id
+        self.action_type = action_type
+        super().__init__(
+            f"action_type {action_type!r} is not dispatchable (case {case_id})"
+        )
+
+
 @dataclass(frozen=True)
 class Prepared:
     """Committed state after TXN 1. Everything the provider call needs."""
@@ -198,19 +217,38 @@ def prepare_dispatch(
             raise DispatchAborted(case_id)
         from_state = CaseState(str(case_row[0]))
 
+        # An open PROPOSED action can exist on either entry path, and
+        # _acquire_action would promote it in both. Read its type once, here.
+        open_action = conn.execute(
+            """
+            SELECT id, action_type FROM recovery_actions
+             WHERE case_id = %s AND status = 'PROPOSED'
+             LIMIT 1
+            """,
+            (case_id,),
+        ).fetchone()
+
         if from_state is CaseState.ESCALATED:
-            proposed = conn.execute(
-                """
-                SELECT 1 FROM recovery_actions
-                 WHERE case_id = %s AND status = 'PROPOSED'
-                 LIMIT 1
-                """,
-                (case_id,),
-            ).fetchone()
-            if proposed is None:
+            if open_action is None:
                 raise DispatchAborted(case_id)
         elif from_state is not CaseState.ACTION_READY:
             raise DispatchAborted(case_id)
+
+        # RETRY_CHARGE must never dispatch. Checked here -- before the breaker
+        # gate, before the budget claim, before any row is written -- so a
+        # refused action promotes nothing, spends no budget, creates no attempt
+        # or provider_request, and never reaches the network. Policy evaluation
+        # remaps RETRY_CHARGE before it reaches review, and review itself
+        # refuses it; this is the third and final guard, at the dispatch layer.
+        if open_action is not None:
+            proposed_type = str(open_action[1])
+            if proposed_type != CREATE_PAYMENT_LINK:
+                if proposed_type == ACTION_RETRY_CHARGE:
+                    raise RetryChargeUnsupported(
+                        f"case {case_id} holds a PROPOSED {proposed_type} action; "
+                        "RETRY_CHARGE is not dispatchable (ADR-005)"
+                    )
+                raise ActionTypeUnsupported(case_id, proposed_type)
 
         # 1. Breaker gate first, under FOR UPDATE so concurrent workers serialise.
         #    The gate must precede the budget claim: an attempt that consumed
@@ -288,7 +326,18 @@ def prepare_dispatch(
                     worker_id=worker_id,
                     fencing_token=fencing_token,
                     reason_code="provider_request_sent",
-                    detail={"operation": OPERATION_CREATE_LINK, "request_no": 1},
+                    detail={
+                        "operation": OPERATION_CREATE_LINK,
+                        "request_no": 1,
+                        # The reference and action type must be reconstructable
+                        # from the audit trail alone, without querying live
+                        # production tables.
+                        "provider_reference": key,
+                        "idempotency_key": key,
+                        "action_type": CREATE_PAYMENT_LINK,
+                        "amount_minor": money["amount_minor"],
+                        "currency": money["currency"],
+                    },
                 )
                 created.update(
                     action_id=action_id, attempt_id=attempt_id, request_id=request_id
@@ -326,14 +375,22 @@ def prepare_dispatch(
 
 def _halt_for_breaker(
     conn: psycopg.Connection, case_id: int, fencing_token: int, worker_id: str | None
-) -> None:
-    transition(
+) -> bool:
+    """ACTION_READY -> HALTED, fenced.
+
+    Uses fenced_transition rather than bare transition so a stale token is
+    *audited* as well as rejected, consistent with every other worker's
+    stale-write handling. The caller's BreakerOpen behaviour is unchanged; only
+    the audit trail gains the missing evidence.
+    """
+    return fenced_transition(
         conn,
         case_id,
         CaseState.ACTION_READY,
         CaseState.HALTED,
         fencing_token,
         "breaker_open",
+        worker_id=worker_id,
     )
 
 
@@ -365,6 +422,11 @@ def _acquire_action(
     provider_expires_at = datetime.fromtimestamp(expire_by, tz=timezone.utc)
     deadline = provider_expires_at + ACTION_DEADLINE_GRACE
 
+    # The action_type predicate is defence in depth: prepare_dispatch already
+    # refused a non-CREATE_PAYMENT_LINK action before any write. If that guard
+    # were ever bypassed, promotion cannot select the row, the INSERT below runs
+    # instead, and uq_case_one_open_action turns it into a database error rather
+    # than a payment link created under a lying action_type.
     promoted = conn.execute(
         """
         UPDATE recovery_actions
@@ -373,9 +435,10 @@ def _acquire_action(
                action_deadline_at = %s
          WHERE case_id = %s
            AND status = 'PROPOSED'
+           AND action_type = %s
         RETURNING id
         """,
-        (provider_expires_at, deadline, case_id),
+        (provider_expires_at, deadline, case_id, CREATE_PAYMENT_LINK),
     ).fetchone()
     if promoted is not None:
         return int(promoted[0])
@@ -530,6 +593,11 @@ def settle_dispatch(
                     "provider_outcome": outcome.value,
                     "http_status": result.http_status,
                     "error_class": result.error_class.value if result.error_class else None,
+                    "provider_reference": prepared.idempotency_key,
+                    "action_type": CREATE_PAYMENT_LINK,
+                    "attempt_state": attempt_state_for(outcome),
+                    "action_status": action_status_for(outcome),
+                    "target_state": target.value,
                 },
             )
 
@@ -543,6 +611,37 @@ def settle_dispatch(
             worker_id=worker_id,
             side_effects=_settle,
         )
+        if not applied:
+            # A stale token correctly prevents the write-back, but the provider
+            # DID answer and we DID read it. Without this the trail records
+            # only stale_write_rejected and silently loses what the provider
+            # actually said -- the one piece of evidence a forensic reader most
+            # needs when two workers raced over money.
+            #
+            # This records evidence only. It applies no state, touches no
+            # attempt, action or request row, and changes no outcome: `applied`
+            # is still False and the caller's contract is unchanged.
+            _audit(
+                conn,
+                event_type="provider_response_observed",
+                case_id=prepared.case_id,
+                action_id=prepared.action_id,
+                attempt_id=prepared.attempt_id,
+                provider_request_id=prepared.request_id,
+                worker_id=worker_id,
+                fencing_token=fencing_token,
+                reason_code="provider_response_not_applied",
+                provider_correlation_id=result.provider_correlation_id,
+                detail={
+                    "provider_outcome": outcome.value,
+                    "http_status": result.http_status,
+                    "provider_reference": prepared.idempotency_key,
+                    "action_type": CREATE_PAYMENT_LINK,
+                    "would_have_targeted": target.value,
+                    "applied": False,
+                    "discarded_because": "stale_fencing_token",
+                },
+            )
 
     return DispatchResult(
         prepared=prepared,

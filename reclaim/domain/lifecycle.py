@@ -5,9 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 from reclaim.config import load_policy
 from reclaim.domain.anchors import Anchor, FinancialFacts
+
+
+EVENT_CASE_CREATED = "case_created"
+EVENT_CASE_DEDUPLICATED = "case_deduplicated"
 
 
 @dataclass(frozen=True)
@@ -15,6 +20,47 @@ class CaseCreationResult:
     obligation_id: int
     case_id: int | None
     created: bool
+
+
+# Both events are written in the SAME transaction as the INSERT they describe --
+# the caller wraps create_obligation_and_case, so the row cannot commit without
+# its evidence.
+def _audit_lifecycle(
+    conn: psycopg.Connection,
+    *,
+    event_type: str,
+    obligation_id: int,
+    case_id: int,
+    anchor: Anchor,
+    facts: FinancialFacts,
+    source_event_id: str,
+    reason_code: str,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO audit_events (
+            event_type, obligation_id, case_id, reason_code, new_state, detail
+        ) VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (
+            event_type,
+            obligation_id,
+            case_id,
+            reason_code,
+            "NEW" if event_type == EVENT_CASE_CREATED else None,
+            Jsonb(
+                {
+                    "anchor_kind": anchor.kind.value,
+                    "anchor_key": anchor.key,
+                    "anchor_canonical": anchor.canonical,
+                    "amount_minor": facts.amount_minor,
+                    "currency": facts.currency,
+                    "customer_ref": facts.customer_ref,
+                    "source_event_id": source_event_id,
+                }
+            ),
+        ),
+    )
 
 
 def create_obligation_and_case(
@@ -71,12 +117,32 @@ def create_obligation_and_case(
             (obligation_id,),
         ).fetchone()
         assert existing is not None
+        _audit_lifecycle(
+            conn,
+            event_type=EVENT_CASE_DEDUPLICATED,
+            obligation_id=obligation_id,
+            case_id=existing[0],
+            anchor=anchor,
+            facts=facts,
+            source_event_id=source_event_id,
+            reason_code="case_deduplicated",
+        )
         return CaseCreationResult(
             obligation_id=obligation_id,
             case_id=existing[0],
             created=False,
         )
 
+    _audit_lifecycle(
+        conn,
+        event_type=EVENT_CASE_CREATED,
+        obligation_id=obligation_id,
+        case_id=case_row[0],
+        anchor=anchor,
+        facts=facts,
+        source_event_id=source_event_id,
+        reason_code="case_created",
+    )
     return CaseCreationResult(
         obligation_id=obligation_id,
         case_id=case_row[0],
