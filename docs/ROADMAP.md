@@ -13,7 +13,7 @@ clause 2 of that list.
 ### Database
 Status: complete.
 
-- 19 versioned migrations in `db/migrations/`, applied by
+- 20 versioned migrations in `db/migrations/`, applied by
   `scripts/apply_migrations.py`.
 - Two roles with different powers: `recovery_app` for ordinary work,
   `recovery_verifier` for the one column that represents money
@@ -124,10 +124,6 @@ Boundaries held:
 - One open action per case and one open attempt per action, enforced by the
   partial unique indexes rather than by application checks (contract 4).
 
----
-
-## In review
-
 ### Reconciliation
 Status: complete, verified against real PostgreSQL.
 
@@ -149,6 +145,27 @@ The re-send adds no action row, no attempt row, and no budget: it retries the
 same mechanism under the same key, so the one-open-mechanism invariant holds. A
 new idempotency key is never minted during reconciliation. No link status is
 treated as proof of non-payment.
+
+### Verification and revenue
+Status: complete, verified against real PostgreSQL.
+
+`reclaim/domain/verification.py` correlates the provider's webhook with an
+**independent** query it makes itself, compares status, amount (integer minor
+units taken from our own attempt, never from the provider) and currency, then
+writes the verification, the transition, and the revenue in one transaction as
+`recovery_verifier`.
+
+| Evidence | Result |
+|---|---|
+| Webhook success **and** independent query agrees | recovered; revenue recognised once |
+| Provider success, no correlated webhook | stays waiting; no verification row |
+| The two sources disagree, either direction | ambiguous, no revenue |
+| Timeout, 5xx, rate limit, auth failure, malformed | no row, no transition, retry |
+
+One source never produces a recovery (contract 6). `recovery_app` provably
+cannot write the revenue column — the migration grants that column to the
+verifier role only, and a test asserts the application role is refused.
+Concurrent verifiers on separate connections recognise revenue exactly once.
 
 ---
 

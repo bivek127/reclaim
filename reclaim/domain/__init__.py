@@ -33,6 +33,15 @@ from reclaim.domain.reconciliation import (
 from reclaim.domain.lifecycle import create_obligation_and_case
 from reclaim.domain.sweeper import expire_ttl, sweep_expired_leases
 from reclaim.domain.transitions import TransitionIllegal, transition
+from reclaim.domain.verification import (
+    VerificationBlocked,
+    VerifyResult,
+    compare,
+    correlate_webhook,
+    trusted_attempt_for,
+    verify_case,
+    verify_once,
+)
 
 __all__ = [
     "Anchor",
@@ -71,4 +80,11 @@ __all__ = [
     "reconcile_once",
     "expire_ttl",
     "sweep_expired_leases",
+    "VerificationBlocked",
+    "VerifyResult",
+    "compare",
+    "correlate_webhook",
+    "trusted_attempt_for",
+    "verify_case",
+    "verify_once",
 ]
