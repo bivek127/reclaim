@@ -167,6 +167,23 @@ cannot write the revenue column — the migration grants that column to the
 verifier role only, and a test asserts the application role is refused.
 Concurrent verifiers on separate connections recognise revenue exactly once.
 
+### Deterministic policy
+Status: complete, verified against real PostgreSQL.
+
+- `reclaim/domain/policy.py` — a pure `evaluate(facts, config)` plus a
+  transactional `apply_policy()`.
+- `config/policy.yaml` — the cause → action table, under an explicit
+  `policy_version`. Changing the table bumps the version, because every stored
+  decision records the version it was made under; a decision made last quarter
+  must stay explainable after the table changes.
+
+Policy calls no provider, dispatches nothing, writes no revenue, and creates no
+diagnoses. An escalation carries no action, by construction.
+
+One thing callers must supply: whether the customer has conflicting payment
+history. The formula is defined, but no schema mapping for it is specified yet,
+so it is an explicit input rather than something inferred from the database.
+
 ---
 
 ## Not built, on purpose

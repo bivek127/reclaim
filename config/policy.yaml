@@ -8,3 +8,18 @@ review_ttl_ms: 86400000   # 24h
 # 14 breaker-monitor job acts on them (ADR-011).
 breaker_failure_threshold: 5
 breaker_reset_seconds: 120
+
+# §10.2 cause → action table (policy_version 1.0).
+# ESCALATE and NO_ACTION are policy outcomes, not executable action types.
+# RETRY_CHARGE is forbidden while §19.1a remains unresolved.
+causes:
+  INSUFFICIENT_FUNDS: CREATE_PAYMENT_LINK
+  EXPIRED_CARD: CREATE_PAYMENT_LINK
+  INCORRECT_CVV: CREATE_PAYMENT_LINK
+  AUTHENTICATION_FAILED: CREATE_PAYMENT_LINK
+  NETWORK_ERROR_NPCI: CREATE_PAYMENT_LINK
+  BANK_DOWNTIME: CREATE_PAYMENT_LINK
+  CARD_DECLINED_ISSUER: ESCALATE
+  MANDATE_REVOKED: ESCALATE
+  RISK_BLOCKED: NO_ACTION
+  UNKNOWN: CREATE_PAYMENT_LINK

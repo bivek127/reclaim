@@ -33,6 +33,16 @@ from reclaim.domain.reconciliation import (
 from reclaim.domain.lifecycle import create_obligation_and_case
 from reclaim.domain.sweeper import expire_ttl, sweep_expired_leases
 from reclaim.domain.transitions import TransitionIllegal, transition
+from reclaim.domain.policy import (
+    ApplyResult,
+    PolicyBlocked,
+    PolicyDecision,
+    PolicyFacts,
+    apply_policy,
+    evaluate,
+    evaluate_once,
+    load_policy_inputs,
+)
 from reclaim.domain.verification import (
     VerificationBlocked,
     VerifyResult,
@@ -80,6 +90,14 @@ __all__ = [
     "reconcile_once",
     "expire_ttl",
     "sweep_expired_leases",
+    "ApplyResult",
+    "PolicyBlocked",
+    "PolicyDecision",
+    "PolicyFacts",
+    "apply_policy",
+    "evaluate",
+    "evaluate_once",
+    "load_policy_inputs",
     "VerificationBlocked",
     "VerifyResult",
     "compare",
