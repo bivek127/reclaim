@@ -108,6 +108,10 @@ class SimMetrics:
     treatment_rate: float
     lift: float
     excluded_from_lift: int
+    # §15 reports the unresolved bucket as a count *and* a sum, kept apart from
+    # both arms: an expired case is neither a win nor a confirmed loss, and
+    # folding its money into either rate would misstate the result.
+    unresolved_amount_minor: int
 
 
 @dataclass(frozen=True)
@@ -340,6 +344,16 @@ def compute_metrics(outcomes: list[SimOutcome]) -> SimMetrics:
     }
     eligible = [o for o in outcomes if o.case_id not in excluded]
 
+    # One amount per excluded case, not one per outcome row: a case appears in
+    # both arms carrying the same obligation amount, so summing rows would
+    # double every unresolved figure. Integer minor units throughout.
+    unresolved_amount_minor = sum(
+        amount
+        for amount in {
+            o.case_id: o.amount_minor for o in outcomes if o.case_id in excluded
+        }.values()
+    )
+
     control = [o for o in eligible if o.arm == ARM_CONTROL]
     treatment = [o for o in eligible if o.arm == ARM_TREATMENT]
     control_resolved = sum(1 for o in control if o.resolved)
@@ -357,6 +371,7 @@ def compute_metrics(outcomes: list[SimOutcome]) -> SimMetrics:
         treatment_rate=treatment_rate,
         lift=treatment_rate - control_rate,
         excluded_from_lift=len(excluded),
+        unresolved_amount_minor=unresolved_amount_minor,
     )
 
 

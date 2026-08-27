@@ -237,7 +237,10 @@ first:
 A fixed seed reproduces a run exactly — outcomes and reported metrics both.
 Each outcome is a hash of `(seed, case_id, arm)` rather than a draw from a
 shared stream, so adding or reordering cases cannot change another case's
-result.
+result. Reproducibility and independence are pinned at the experiment size the
+design calls for, 50 per arm over a 120-case corpus
+(`tests/domain/test_simulator_scale.py`); the other suites run three per arm,
+which proves a mechanism but is too small to catch a defect that is statistical.
 
 **Research values ship unset.** The baseline and per-action rates must be
 externally sourced and cited; those citations do not exist in this repository,
