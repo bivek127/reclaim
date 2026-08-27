@@ -7,7 +7,7 @@
  */
 
 import type {
-  CaseDetail, CaseHistory, CasePage, Meta, Overview, ReviewQueue, SystemStatus,
+  CaseDetail, CaseHistory, CasePage, Health, Meta, Overview, ReviewQueue, SystemStatus,
 } from "./types";
 
 /** An error carrying the status and the server's own explanation. */
@@ -88,6 +88,7 @@ export interface CaseQuery {
 }
 
 export const api = {
+  health: () => request<Health>("/api/health"),
   meta: () => request<Meta>("/api/meta"),
   overview: () => request<Overview>("/api/overview"),
   cases: (query: CaseQuery = {}) =>

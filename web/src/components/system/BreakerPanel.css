@@ -1,0 +1,105 @@
+/*
+ * The breaker is the one element on this page allowed to dominate, and only
+ * when it is open. A closed breaker is deliberately quiet: a control room that
+ * celebrates normality teaches operators to stop reading it.
+ */
+
+.brk {
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  background: var(--c-surface);
+  padding: var(--s-4) var(--s-5);
+}
+
+.brk--open {
+  border-color: var(--c-attention-edge);
+  background: var(--c-attention-tint);
+}
+
+.brk--unknown {
+  border-style: dashed;
+  border-color: var(--c-border-strong);
+  background: var(--c-surface-sunk);
+}
+
+.brk__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+/* Shape carries the state as well as colour: a filled square reads as a live
+   gate, a hollow ring as a stopped one, so the panel survives greyscale. */
+.brk__mark {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border-radius: 2px;
+}
+.brk__mark--closed { background: var(--c-success-text); }
+.brk__mark--open {
+  border: 3px solid var(--c-attention-text);
+  border-radius: 50%;
+  background: transparent;
+}
+.brk__mark--unknown {
+  border: 2px dashed var(--c-text-muted);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.brk__state {
+  font-size: var(--fs-md);
+  letter-spacing: -0.01em;
+  font-family: var(--font-mono);
+}
+
+.brk__meaning {
+  margin-left: auto;
+  text-align: right;
+  font-size: var(--fs-sm);
+  color: var(--c-text-secondary);
+  max-width: 46ch;
+}
+
+.brk--open .brk__meaning { color: var(--c-attention-text); font-weight: var(--fw-medium); }
+
+.brk__scope {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--c-border);
+  font-size: var(--fs-sm);
+  color: var(--c-text-secondary);
+}
+.brk--open .brk__scope { border-top-color: var(--c-attention-edge); }
+
+.brk__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3) var(--s-6);
+  margin: var(--s-3) 0 0;
+}
+.brk__facts-wide { grid-column: 1 / -1; }
+
+.brk__facts dt {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+  margin-bottom: 2px;
+}
+.brk__facts dd {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--c-text);
+  overflow-wrap: anywhere;
+}
+
+.brk__caveat { color: var(--c-text-secondary); font-weight: var(--fw-normal); }
+
+@media (max-width: 900px) {
+  .brk__head { flex-wrap: wrap; }
+  .brk__meaning { margin-left: 0; text-align: left; flex-basis: 100%; max-width: none; }
+  .brk__facts { grid-template-columns: minmax(0, 1fr); }
+}

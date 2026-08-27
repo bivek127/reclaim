@@ -5,6 +5,12 @@
  * All money is integer minor units; all timestamps are ISO-8601 strings.
  */
 
+/** Liveness only. The API asserts nothing here about the provider or workers. */
+export interface Health {
+  status: string;
+  environment: string;
+}
+
 export interface Meta {
   environment: string;
   case_states: string[];

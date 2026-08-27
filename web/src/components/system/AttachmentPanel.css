@@ -1,0 +1,42 @@
+/*
+ * A horizontal strip of label/value pairs rather than a stack of rows: this is
+ * orientation an operator reads once on arrival, not a list they scan.
+ */
+
+.att {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4) var(--s-10);
+}
+
+.att__item { min-width: 0; }
+
+.att dt {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+  margin-bottom: 3px;
+}
+
+.att dd {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--c-text);
+  white-space: nowrap;
+}
+
+.att__dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  margin-right: var(--s-2);
+  vertical-align: 1px;
+}
+.att__dot--ok  { background: var(--c-success-text); }
+/* Hollow, so "unreachable" is legible without relying on hue. */
+.att__dot--bad { background: transparent; box-shadow: inset 0 0 0 2px var(--c-danger-text); }
+
+.att__unknown { color: var(--c-text-muted); font-style: italic; }

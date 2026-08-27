@@ -1,0 +1,47 @@
+/*
+ * Counters, not KPI cards. The number is set at reading size, because an
+ * operations page that renders "0" at 32px is decorating an absence.
+ */
+
+.sig { display: grid; gap: 0; }
+
+.sig__row {
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--c-border);
+}
+.sig__row:first-child { padding-top: 0; }
+.sig__row:last-child { border-bottom: 0; padding-bottom: 0; }
+
+/* A left edge, not a fill: notable counters are worth a look, not an alarm. */
+.sig__row.is-notable {
+  border-left: 2px solid var(--c-attention-edge);
+  padding-left: var(--s-3);
+  margin-left: calc(var(--s-3) * -1 - 2px);
+}
+
+.sig__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.sig__label { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--c-text); }
+
+.sig__value {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semi);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text);
+}
+.sig__row.is-notable .sig__value { color: var(--c-attention-text); }
+
+.sig__meaning {
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  line-height: var(--lh-base);
+  max-width: 62ch;
+}
+
+.sig__link { display: inline-block; margin-top: var(--s-2); font-size: var(--fs-xs); }

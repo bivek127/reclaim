@@ -1,0 +1,60 @@
+/*
+ * A reference list, not a status display. Rows carry the literal state code so
+ * an operator can match what they see here against a log line or a query.
+ */
+
+.voc { display: grid; gap: var(--s-4); }
+
+.voc__group-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--c-border);
+  margin-bottom: var(--s-2);
+}
+
+.voc__count {
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+  color: var(--c-text-faint);
+}
+
+.voc__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: 3px 0;
+}
+
+.voc__code {
+  flex: none;
+  width: 168px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--c-text-secondary);
+  /* A 2px stripe, not a filled chip: 15 tinted pills would be a rainbow. */
+  border-left: 2px solid var(--c-border-strong);
+  padding-left: var(--s-2);
+}
+.voc__code--attention { border-left-color: var(--c-attention-edge); color: var(--c-attention-text); }
+.voc__code--danger    { border-left-color: var(--c-danger-edge); }
+.voc__code--success   { border-left-color: var(--c-success-edge); }
+.voc__code--progress  { border-left-color: var(--c-progress-edge); }
+.voc__code--waiting   { border-left-color: var(--c-waiting-edge); }
+
+.voc__meaning { font-size: var(--fs-xs); color: var(--c-text-muted); }
+
+.voc__drift {
+  padding: var(--s-3);
+  border: 1px solid var(--c-attention-edge);
+  border-radius: var(--r-md);
+  background: var(--c-attention-tint);
+  font-size: var(--fs-xs);
+  color: var(--c-attention-text);
+}
+
+@media (max-width: 700px) {
+  .voc__row { flex-direction: column; gap: 2px; }
+  .voc__code { width: auto; }
+}

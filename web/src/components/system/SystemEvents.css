@@ -1,0 +1,73 @@
+.sev { display: grid; gap: 0; }
+
+.sev__row {
+  display: flex;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--c-border);
+}
+.sev__row:first-child { padding-top: 0; }
+.sev__row:last-child { border-bottom: 0; }
+
+.sev__mark {
+  flex: none;
+  width: 8px; height: 8px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: var(--c-primary);
+}
+
+.sev__body { min-width: 0; }
+
+.sev__title { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--c-text); }
+
+.sev__sum {
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--c-text-secondary);
+  max-width: 68ch;
+}
+
+.sev__meta {
+  margin-top: var(--s-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-micro);
+  color: var(--c-text-muted);
+}
+.sev__meta > * + *::before {
+  content: "·";
+  margin-right: var(--s-2);
+  color: var(--c-border-strong);
+}
+
+.sev__cat {
+  font-weight: var(--fw-semi);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+/* The distinguishing fact of this list: these rows have no case to link to. */
+.sev__scope {
+  padding: 1px var(--s-2);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-sm);
+  background: var(--c-surface-sunk);
+  color: var(--c-text-secondary);
+}
+.sev__meta > .sev__scope + *::before { content: "·"; }
+
+.sev__time { margin-left: auto; }
+
+.sev__empty { font-size: var(--fs-sm); color: var(--c-text-secondary); max-width: 68ch; }
+
+.sev__window {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px dashed var(--c-border);
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  max-width: 68ch;
+}
