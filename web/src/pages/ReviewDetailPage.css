@@ -1,0 +1,133 @@
+.rv-head {
+  padding: var(--s-5) var(--s-8) var(--s-4);
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.rv-head__crumbs {
+  display: flex; align-items: center; gap: var(--s-2);
+  font-size: var(--fs-xs); color: var(--c-text-muted);
+  margin-bottom: var(--s-3);
+}
+.rv-head__crumbs a { color: var(--c-text-secondary); }
+
+.rv-head__row {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--s-6); flex-wrap: wrap;
+}
+
+.rv-head__title-row { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
+.rv-head__title { font-size: var(--fs-lg); letter-spacing: -0.02em; }
+
+.rv-head__status {
+  padding: 2px var(--s-2);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border-strong);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+  letter-spacing: 0.03em;
+}
+
+.rv-head__facts { display: flex; flex-wrap: wrap; gap: var(--s-6); margin-top: var(--s-3); }
+.rv-head__facts dt { font-size: var(--fs-micro); color: var(--c-text-muted); }
+.rv-head__facts dd { margin: 2px 0 0; font-size: var(--fs-sm); }
+
+.rv-head__links { display: flex; gap: var(--s-2); flex: none; }
+
+/* Evidence gets the wide column; the decision rail is deliberately narrower. */
+.rv-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-8) var(--s-12);
+  max-width: var(--content-max);
+  align-items: start;
+}
+
+.rv-body__main { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
+
+.rv-body__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  position: sticky;
+  top: var(--s-5);
+  /* On a short viewport the rail scrolls internally instead of clipping the
+     decision controls out of reach. */
+  max-height: calc(100vh - var(--s-10));
+  overflow-y: auto;
+}
+
+.rv-why__text { font-size: var(--fs-sm); color: var(--c-text); max-width: 76ch; }
+
+.rv-why__facts { display: flex; flex-wrap: wrap; gap: var(--s-6); margin-top: var(--s-4); }
+.rv-why__facts dt { font-size: var(--fs-micro); color: var(--c-text-muted); }
+.rv-why__facts dd { margin: 2px 0 0; font-size: var(--fs-xs); }
+
+.rv-why__codes { margin-top: var(--s-4); }
+.rv-why__codes ul { display: flex; gap: var(--s-2); flex-wrap: wrap; margin-top: var(--s-2); }
+.rv-why__codes-note {
+  margin-top: var(--s-2);
+  font-size: var(--fs-micro);
+  color: var(--c-text-muted);
+  max-width: 72ch;
+}
+
+.rv-authorise { display: flex; flex-direction: column; gap: var(--s-3); }
+.rv-authorise li {
+  position: relative;
+  padding-left: var(--s-4);
+  font-size: var(--fs-sm);
+  color: var(--c-text-secondary);
+  max-width: 78ch;
+}
+.rv-authorise li::before {
+  content: "";
+  position: absolute; left: 4px; top: 9px;
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--c-border-strong);
+}
+.rv-authorise strong { color: var(--c-text); }
+
+.rv-proposed {
+  padding: var(--s-3) var(--s-4);
+  border-left: 2px solid var(--c-attention-text);
+  background: var(--c-attention-tint);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.rv-proposed__title { font-size: var(--fs-sm); font-weight: var(--fw-semi); color: var(--c-attention-text); }
+.rv-proposed__body { margin-top: var(--s-1); font-size: var(--fs-xs); color: var(--c-attention-text); }
+
+.rv-empty {
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--c-surface-sunk);
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+}
+
+.rv-side-note {
+  padding: var(--s-4);
+  border: 1px dashed var(--c-border-strong);
+  border-radius: var(--r-md);
+  background: var(--c-surface-sunk);
+}
+.rv-side-note .u-label { display: block; margin-bottom: var(--s-1); }
+.rv-side-note__text {
+  margin-top: var(--s-2);
+  font-size: var(--fs-micro);
+  color: var(--c-text-muted);
+}
+
+@media (max-width: 1100px) {
+  .rv-body { grid-template-columns: 1fr; }
+  .rv-body__side { max-height: none; overflow-y: visible; }
+  /* On a narrow screen the decision comes first so it is not lost below the
+     evidence, but it is still a compact rail rather than a slab. */
+  .rv-body__side { position: static; order: -1; }
+}
+
+@media (max-width: 900px) {
+  .rv-head { padding: var(--s-4); }
+  .rv-body { padding: var(--s-4) var(--s-4) var(--s-10); }
+}

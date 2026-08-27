@@ -1,0 +1,138 @@
+/* Deliberately restrained: the decision is important, but the evidence to the
+   left of it is what the reviewer should be reading. */
+
+.dp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  border: 1px solid var(--c-attention-edge);
+  border-radius: var(--r-lg);
+  background: var(--c-surface);
+  box-shadow: var(--e-raised);
+}
+
+.dp--closed { border-color: var(--c-border); }
+
+.dp__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.dp__expiry { font-size: var(--fs-xs); color: var(--c-text-secondary); }
+.dp__expiry.is-lapsed { color: var(--c-attention-text); font-weight: var(--fw-semi); }
+
+.dp__warn {
+  padding: var(--s-2) var(--s-3);
+  border-left: 2px solid var(--c-attention-text);
+  background: var(--c-attention-tint);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: var(--fs-xs);
+  color: var(--c-attention-text);
+}
+
+.dp__amount {
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--c-border);
+}
+.dp__amount .u-label { margin-bottom: var(--s-1); }
+
+.dp__field { display: flex; flex-direction: column; gap: var(--s-2); border: none; padding: 0; margin: 0; }
+
+.dp__label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semi);
+  color: var(--c-text);
+  padding: 0;
+}
+
+.dp__hint { font-size: var(--fs-micro); color: var(--c-text-muted); }
+.dp__hint--block { width: 100%; }
+
+.dp__radio {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.dp__radio:hover { background: var(--c-surface-sunk); }
+.dp__radio:has(input:checked) { border-color: var(--c-primary); background: var(--c-primary-soft); }
+
+.dp__actions { display: flex; gap: var(--s-2); flex-wrap: wrap; align-items: center; }
+
+/* Approve is prominent but not a giant slab: it must not outweigh the evidence. */
+.dp__approve { flex: 1 1 auto; justify-content: center; }
+
+.dp__confirm {
+  padding: var(--s-4);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-md);
+  background: var(--c-surface-sunk);
+}
+
+.dp__confirm-title {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semi);
+  margin-bottom: var(--s-3);
+}
+
+/* The consequence is spelled out in domain terms, not a generic "are you sure". */
+.dp__consequences {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-bottom: var(--s-4);
+}
+.dp__consequences li {
+  position: relative;
+  padding-left: var(--s-4);
+  font-size: var(--fs-xs);
+  color: var(--c-text-secondary);
+  line-height: var(--lh-loose);
+}
+.dp__consequences li::before {
+  content: "";
+  position: absolute;
+  left: 4px; top: 8px;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--c-border-strong);
+}
+.dp__consequences strong { color: var(--c-text); }
+
+.dp__error {
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--c-danger-edge);
+  border-radius: var(--r-md);
+  background: var(--c-danger-tint);
+}
+.dp__error-title { font-size: var(--fs-sm); font-weight: var(--fw-semi); color: var(--c-danger-text); }
+.dp__error-body { margin: var(--s-1) 0 var(--s-3); font-size: var(--fs-xs); color: var(--c-danger-text); }
+
+.dp__outcome {
+  display: inline-flex;
+  padding: 2px var(--s-3);
+  margin-top: var(--s-1);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border-strong);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semi);
+  letter-spacing: 0.03em;
+}
+
+.dp__facts { display: flex; flex-direction: column; gap: var(--s-3); margin: var(--s-4) 0; }
+.dp__facts dt { font-size: var(--fs-micro); color: var(--c-text-muted); }
+.dp__facts dd { margin: 2px 0 0; font-size: var(--fs-xs); color: var(--c-text); }
+
+.dp__note {
+  font-size: var(--fs-micro);
+  color: var(--c-text-muted);
+  margin-bottom: var(--s-3);
+}

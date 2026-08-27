@@ -4,6 +4,7 @@ import { OverviewPage } from "@/pages/OverviewPage";
 import { CasesPage } from "@/pages/CasesPage";
 import { CaseDetailPage } from "@/pages/CaseDetailPage";
 import { ReviewsPage } from "@/pages/ReviewsPage";
+import { ReviewDetailPage } from "@/pages/ReviewDetailPage";
 import { SystemPage } from "@/pages/SystemPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
@@ -17,7 +18,7 @@ export const router = createBrowserRouter([
       { path: "cases/:caseId", element: <CaseDetailPage /> },
       { path: "cases/:caseId/timeline", element: <CaseDetailPage /> },
       { path: "reviews", element: <ReviewsPage /> },
-      { path: "reviews/:caseId", element: <CaseDetailPage /> },
+      { path: "reviews/:caseId", element: <ReviewDetailPage /> },
       { path: "system", element: <SystemPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
