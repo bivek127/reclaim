@@ -1,0 +1,48 @@
+.sys { display: flex; flex-direction: column; gap: var(--s-3); }
+
+.sys__row {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  gap: var(--s-2);
+  align-items: center;
+  font-size: var(--fs-xs);
+}
+
+/* Shape plus text, never colour alone. */
+.sys__marker {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--c-success-text);
+}
+.sys__row.is-bad .sys__marker { background: var(--c-danger-text); border-radius: 1px; }
+
+.sys__label { color: var(--c-text-muted); }
+.sys__value { color: var(--c-text); font-weight: var(--fw-medium); text-align: right; }
+.sys__row.is-bad .sys__value { color: var(--c-danger-text); }
+.sys__sub { font-weight: var(--fw-normal); color: var(--c-text-muted); }
+
+.sys__warn {
+  padding: var(--s-2) var(--s-3);
+  border-left: 2px solid var(--c-danger-text);
+  background: var(--c-danger-tint);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: var(--fs-micro);
+  color: var(--c-danger-text);
+}
+
+.sys__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--c-border);
+}
+.sys__stats dt { font-size: var(--fs-micro); color: var(--c-text-muted); }
+.sys__stats dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semi);
+  font-variant-numeric: tabular-nums;
+}
+.sys__stats dd.is-note { color: var(--c-attention-text); }
+
+.sys__link { font-size: var(--fs-xs); }

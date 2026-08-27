@@ -1,0 +1,56 @@
+.dist { display: flex; flex-direction: column; }
+
+.dist__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 60px 28px;
+  gap: var(--s-3);
+  align-items: center;
+  padding: var(--s-2) 0;
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--c-border);
+}
+.dist li:last-child .dist__row { border-bottom: none; }
+.dist__row:hover { text-decoration: none; }
+.dist__row:hover .dist__name { color: var(--c-primary-text); }
+
+.dist__name {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.25;
+  color: var(--c-text);
+  min-width: 0;
+}
+.dist__code { font-size: var(--fs-micro); color: var(--c-text-faint); }
+
+.dist__bar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--c-surface-sunk);
+  overflow: hidden;
+}
+.dist__fill { display: block; height: 100%; border-radius: 3px; }
+
+/* The same semantics as the badges, so the bar cannot contradict the label. */
+.dist__fill--success   { background: var(--c-success-text); }
+.dist__fill--attention { background: var(--c-attention-text); }
+.dist__fill--danger    { background: var(--c-danger-text); }
+.dist__fill--progress  { background: var(--c-progress-text); }
+.dist__fill--waiting   { background: var(--c-waiting-text); }
+.dist__fill--neutral   { background: var(--c-border-strong); }
+
+.dist__count {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semi);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--c-text);
+}
+
+.dist__absent, .dist__empty {
+  margin-top: var(--s-3);
+  font-size: var(--fs-micro);
+  color: var(--c-text-muted);
+}

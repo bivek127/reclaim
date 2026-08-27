@@ -1,0 +1,57 @@
+.attn { display: flex; flex-direction: column; }
+
+.attn__row {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr) auto;
+  gap: var(--s-4);
+  align-items: center;
+  padding: var(--s-3) var(--s-5);
+  border-bottom: 1px solid var(--c-border);
+  /* The amber edge is the same signal used in the case queue. */
+  box-shadow: inset 2px 0 0 var(--c-attention-text);
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+.attn__row:last-child { border-bottom: none; }
+.attn__row:hover { background: var(--c-surface-sunk); }
+.attn__row:focus-visible { background: var(--c-primary-soft); outline-offset: -2px; }
+
+.attn__lead { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.attn__id { font-size: var(--fs-sm); font-weight: var(--fw-semi); font-variant-numeric: tabular-nums; }
+.attn__anchor { font-size: var(--fs-micro); color: var(--c-text-muted); }
+
+.attn__mid { min-width: 0; }
+.attn__states { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+
+.attn__review {
+  padding: 1px var(--s-2);
+  border: 1px solid var(--c-attention-edge);
+  border-radius: 9px;
+  background: var(--c-attention-tint);
+  color: var(--c-attention-text);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+}
+
+.attn__why {
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attn__tail { text-align: right; flex: none; }
+.attn__time { margin-top: 2px; font-size: var(--fs-micro); color: var(--c-text-muted); white-space: nowrap; }
+
+.attn__more {
+  padding: var(--s-3) var(--s-5);
+  border-top: 1px solid var(--c-border);
+  font-size: var(--fs-xs);
+}
+
+@media (max-width: 700px) {
+  .attn__row { grid-template-columns: 1fr auto; }
+  .attn__lead { grid-column: 1 / -1; flex-direction: row; gap: var(--s-2); align-items: baseline; }
+}
