@@ -342,7 +342,7 @@ def test_keys_are_unique_across_dispatches(conn: psycopg.Connection) -> None:
 # ---- I5: one unresolved financial mechanism ------------------------------
 
 
-def test_prior_unresolved_action_blocks_a_second(conn: psycopg.Connection) -> None:
+def test_prior_action_success_after_second_proposed(conn: psycopg.Connection) -> None:
     """Matrix row 22's shape: the DB refuses, before any network call."""
     ids = seed_dispatchable(conn)
     _dispatch(conn, ids, StubProvider(ProviderOutcome.TIMEOUT))  # -> UNRESOLVED

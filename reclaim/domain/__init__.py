@@ -39,7 +39,12 @@ from reclaim.domain.reconciliation import (
     reconcile_once,
 )
 from reclaim.domain.lifecycle import create_obligation_and_case
-from reclaim.domain.sweeper import expire_ttl, sweep_expired_leases
+from reclaim.domain.sweeper import (
+    DeadlineExpiryResult,
+    expire_action_deadlines,
+    expire_ttl,
+    sweep_expired_leases,
+)
 from reclaim.domain.transitions import TransitionIllegal, transition
 from reclaim.domain.diagnosis import (
     DiagnosisBlocked,
@@ -132,6 +137,8 @@ __all__ = [
     "post_count",
     "reconcile_case",
     "reconcile_once",
+    "DeadlineExpiryResult",
+    "expire_action_deadlines",
     "expire_ttl",
     "sweep_expired_leases",
     "DiagnosisBlocked",

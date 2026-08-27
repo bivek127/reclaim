@@ -33,7 +33,7 @@ def _open_breaker(conn: psycopg.Connection) -> None:
 # ---- gate ------------------------------------------------------------
 
 
-def test_open_breaker_halts_before_dispatch(conn: psycopg.Connection) -> None:
+def test_breaker_open_halts_before_dispatch(conn: psycopg.Connection) -> None:
     """An OPEN breaker aborts to HALTED before dispatch, creating nothing."""
     ids = seed_dispatchable(conn)
     _open_breaker(conn)

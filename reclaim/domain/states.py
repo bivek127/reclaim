@@ -54,6 +54,11 @@ ALLOWED_TRANSITIONS: frozenset[tuple[CaseState, CaseState]] = frozenset(
         (CaseState.AWAITING_CUSTOMER, CaseState.VERIFIED_RECOVERED),
         (CaseState.AWAITING_CUSTOMER, CaseState.ATTEMPT_FAILED),
         (CaseState.AWAITING_CUSTOMER, CaseState.AMBIGUOUS),
+        # A payment window that closed without payment is escalated for human
+        # judgement -- never auto-retried, never treated as terminal failure.
+        # An expired link is not evidence the customer failed to pay. See
+        # ADR-017.
+        (CaseState.AWAITING_CUSTOMER, CaseState.ESCALATED),
         (CaseState.ATTEMPT_FAILED, CaseState.POLICY_EVAL),
         (CaseState.ATTEMPT_FAILED, CaseState.ESCALATED),
         (CaseState.AMBIGUOUS, CaseState.RECONCILING),

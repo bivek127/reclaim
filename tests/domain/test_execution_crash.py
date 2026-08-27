@@ -216,7 +216,7 @@ def test_unknown_action_stays_unresolved_not_terminal(conn: psycopg.Connection) 
     assert action["resolved_at"] is None
 
 
-def test_ambiguous_case_cannot_dispatch_again(conn: psycopg.Connection) -> None:
+def test_ambiguous_cannot_dispatch(conn: psycopg.Connection) -> None:
     """I4/I5: no new financial action while the prior one is unresolved."""
     from psycopg.errors import UniqueViolation
 

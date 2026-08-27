@@ -268,6 +268,24 @@ reviewer's decision, verification, and lease activity. Anything the trail
 cannot supply is **named** in the result rather than returned as a silent
 `None`: absence of evidence is itself evidence.
 
+### End-to-end hardening
+Status: implemented.
+
+- `tests/test_matrix_coverage.py` checks that every failure-mode and invariant
+  the design names resolves to a real test function, so "the matrix is green"
+  is checkable rather than asserted. On its first run it failed on four names:
+  three were behaviourally covered under different names, one was genuinely
+  missing.
+- `sweeper.expire_action_deadlines()` escalates a case whose payment window has
+  closed, reusing the existing escalation provenance and single pending review.
+  It is deliberately separate from TTL expiry — a closed window is not budget
+  exhaustion, and the two stay distinct in the audit trail.
+- The sweep runs on our own deadline, not the provider's, so our "this action is
+  dead" never precedes theirs.
+- The sweep never marks an action failed, creates no second action, consumes no
+  attempt budget, calls no provider, and cannot write revenue. Reading an
+  expired link as proof of non-payment is exactly what it must not do.
+
 ---
 
 ## Not built, on purpose

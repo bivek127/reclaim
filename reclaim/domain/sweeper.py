@@ -13,6 +13,11 @@ from reclaim.domain.transitions import transition
 SWEEPER_LIMIT = 100
 SWEEPER_WORKER_ID = "sweeper"
 TTL_WORKER_ID = "ttl-expiry"
+DEADLINE_WORKER_ID = "deadline-expiry"
+
+# Distinct from ttl_exhausted: the case still has TTL budget; it is the
+# ACTION whose window closed.
+REASON_ACTION_DEADLINE = "action_deadline_expired"
 
 RELEASE_ON_EXPIRED_LEASE = frozenset(
     {
@@ -50,6 +55,12 @@ class SweepResult:
 @dataclass(frozen=True)
 class TtlExpiryResult:
     expired: int
+    skipped: int
+
+
+@dataclass(frozen=True)
+class DeadlineExpiryResult:
+    escalated: int
     skipped: int
 
 
@@ -217,3 +228,94 @@ def expire_ttl(
                 skipped += 1
 
     return TtlExpiryResult(expired=expired, skipped=skipped)
+
+
+def expire_action_deadlines(
+    conn: psycopg.Connection,
+    *,
+    limit: int = SWEEPER_LIMIT,
+) -> DeadlineExpiryResult:
+    """A payment window that closed without payment moves the case to ESCALATED.
+
+    Deliberately separate from `expire_ttl`. That function implements case-level
+    TTL *budget* exhaustion; this one fires while the case may still have plenty
+    of TTL left -- what expired is the ACTION's window, not the case's clock.
+    Both run on the same periodic tick without entangling the TTL arithmetic.
+
+    Triggered on `action_deadline_at`, not `provider_expires_at`. The former is
+    set to `expire_by + 10min`, and `ck_deadline_after_provider` enforces the
+    ordering, because our internal notion of "this action is dead" must never
+    arrive before the provider's. Sweeping on the provider's own expiry would
+    collapse that grace window and could escalate a customer who paid in the
+    final seconds. See ADR-017.
+
+    What this deliberately does NOT do: it never marks the action
+    TERMINAL_FAILED, never creates a second action, never claims budget, and
+    never touches a provider. An expired link is not evidence that the payment
+    failed -- only that we stopped waiting. A human decides.
+    """
+    escalated = 0
+    skipped = 0
+    with conn.transaction():
+        rows = conn.execute(
+            """
+            SELECT c.id, c.state::text
+              FROM recovery_cases c
+              JOIN recovery_actions ra ON ra.case_id = c.id
+             WHERE c.state = %s
+               AND ra.status = 'LIVE'
+               AND ra.action_deadline_at IS NOT NULL
+               AND ra.action_deadline_at < now()
+             FOR UPDATE OF c SKIP LOCKED
+             LIMIT %s
+            """,
+            (CaseState.AWAITING_CUSTOMER.value, limit),
+        ).fetchall()
+
+        for case_id, state_value in rows:
+            state = as_case_state(state_value)
+            bumped = conn.execute(
+                """
+                UPDATE recovery_cases
+                   SET fencing_token = fencing_token + 1,
+                       updated_at = now()
+                 WHERE id = %s
+                   AND state = %s
+                RETURNING fencing_token
+                """,
+                (case_id, state.value),
+            ).fetchone()
+            if bumped is None:
+                skipped += 1
+                continue
+            new_token = bumped[0]
+
+            def _deadline_side_effects(
+                inner: psycopg.Connection, *, cid: int = case_id
+            ) -> None:
+                from reclaim.domain.review import on_entered_escalated
+
+                # Escalation provenance + exactly one PENDING review, reusing
+                # the same entry point the TTL-expiry path uses.
+                on_entered_escalated(
+                    inner,
+                    cid,
+                    reason_code=REASON_ACTION_DEADLINE,
+                    policy_decision_id=None,
+                )
+
+            applied = transition(
+                conn,
+                case_id,
+                state,
+                CaseState.ESCALATED,
+                new_token,
+                REASON_ACTION_DEADLINE,
+                side_effects=_deadline_side_effects,
+            )
+            if applied:
+                escalated += 1
+            else:
+                skipped += 1
+
+    return DeadlineExpiryResult(escalated=escalated, skipped=skipped)
