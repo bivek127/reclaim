@@ -1,0 +1,63 @@
+.review__none {
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--c-surface-sunk);
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+}
+
+.review__why {
+  padding: var(--s-3) var(--s-4);
+  border-left: 2px solid var(--c-attention-text);
+  background: var(--c-attention-tint);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  margin-bottom: var(--s-4);
+}
+.review__why-text { margin-top: var(--s-1); font-size: var(--fs-sm); color: var(--c-attention-text); max-width: 70ch; }
+.review__why-code { margin-top: var(--s-1); font-size: var(--fs-micro); color: var(--c-text-muted); }
+
+.review__list { display: flex; flex-direction: column; gap: var(--s-3); }
+
+.review__item {
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  padding: var(--s-4);
+}
+.review__item.is-pending { border-color: var(--c-attention-edge); }
+
+.review__head { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
+
+.review__status {
+  padding: 1px var(--s-2);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border-strong);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+  letter-spacing: 0.03em;
+}
+.status-pending  { border-color: var(--c-attention-edge); background: var(--c-attention-tint); color: var(--c-attention-text); }
+.status-approved { border-color: var(--c-success-edge);   background: var(--c-success-tint);   color: var(--c-success-text); }
+.status-rejected { border-color: var(--c-neutral-edge);   background: var(--c-neutral-tint);   color: var(--c-neutral-text); }
+.status-expired  { border-color: var(--c-neutral-edge);   background: var(--c-neutral-tint);   color: var(--c-text-muted); }
+
+.review__action { font-size: var(--fs-xs); color: var(--c-text-secondary); }
+.review__time { margin-left: auto; font-size: var(--fs-xs); color: var(--c-text-muted); }
+
+.review__facts { display: flex; flex-wrap: wrap; gap: var(--s-6); margin-top: var(--s-3); }
+.review__facts dt { font-size: var(--fs-micro); color: var(--c-text-muted); }
+.review__facts dd { margin: 2px 0 0; font-size: var(--fs-xs); color: var(--c-text); }
+.review__facts dd.is-warn { color: var(--c-attention-text); font-weight: var(--fw-medium); }
+
+.review__cta { margin-top: var(--s-4); }
+.review__cta-note {
+  margin-top: var(--s-2);
+  font-size: var(--fs-micro);
+  color: var(--c-text-muted);
+  max-width: 66ch;
+}
+
+.review__decided-note {
+  margin-top: var(--s-3);
+  font-size: var(--fs-micro);
+  color: var(--c-text-muted);
+}

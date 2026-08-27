@@ -1,0 +1,26 @@
+.obl__amount {
+  padding-bottom: var(--s-4);
+  margin-bottom: var(--s-4);
+  border-bottom: 1px solid var(--c-border);
+}
+.obl__amount .u-label { margin-bottom: var(--s-1); }
+
+.obl__kv { margin-bottom: var(--s-4); }
+.obl .kv__row { grid-template-columns: 104px minmax(0, 1fr); }
+.obl .kv__val { font-size: var(--fs-xs); }
+
+.obl__divider {
+  height: 1px;
+  background: var(--c-border);
+  margin: 0 0 var(--s-4);
+}
+
+.obl__vitals-label { display: block; margin-bottom: var(--s-3); }
+
+.obl__budget.is-spent { color: var(--c-attention-text); font-weight: var(--fw-medium); }
+.obl__budget-note { font-weight: var(--fw-normal); }
+.obl__none { color: var(--c-text-faint); }
+
+@media (max-width: 900px) {
+  .obl .kv__row { grid-template-columns: 1fr; }
+}

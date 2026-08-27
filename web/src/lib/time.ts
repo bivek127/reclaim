@@ -54,6 +54,16 @@ export function deadlineDistance(
   return { text: expired ? `closed ${amount} ago` : `in ${amount}`, expired };
 }
 
+/** Compact instant for narrow columns: "27 Aug, 16:28". */
+export function compact(iso: string | null | undefined): string {
+  const d = parse(iso);
+  if (!d) return "—";
+  return d.toLocaleString(undefined, {
+    day: "numeric", month: "short",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+}
+
 /** Full, unambiguous instant for tooltips and forensic reading. */
 export function absolute(iso: string | null | undefined): string {
   const d = parse(iso);

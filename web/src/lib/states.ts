@@ -41,6 +41,17 @@ export const STATE_PRESENTATION: Record<string, StatePresentation> = {
                         meaning: "Time ran out before the outcome could be resolved." },
 };
 
+/** States a case can no longer leave. Mirrors the domain's terminal set. */
+export const TERMINAL_STATES: readonly string[] = [
+  "VERIFIED_RECOVERED",
+  "VERIFIED_FAILED",
+  "EXPIRED_UNRESOLVED",
+];
+
+export function isTerminal(state: string): boolean {
+  return TERMINAL_STATES.includes(state);
+}
+
 export function presentationFor(state: string): StatePresentation {
   return (
     STATE_PRESENTATION[state] ?? {

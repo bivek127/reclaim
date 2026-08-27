@@ -1,0 +1,137 @@
+/* Nesting depth encodes the domain hierarchy: action > attempt > provider call. */
+
+.actions { display: flex; flex-direction: column; gap: var(--s-4); }
+
+.action {
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  padding: var(--s-4);
+  background: var(--c-surface);
+}
+
+/* An approved-but-undispatched action is the one thing on this page that has
+   not happened yet, so it is marked rather than blending in. */
+.action.is-proposed {
+  border-style: dashed;
+  border-color: var(--c-attention-edge);
+  background: var(--c-attention-tint);
+}
+
+.action__head, .attempt__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.action__seq { font-size: var(--fs-sm); font-weight: var(--fw-semi); }
+.action__type { font-size: var(--fs-xs); color: var(--c-text-secondary); }
+
+.action__status, .attempt__state {
+  padding: 1px var(--s-2);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border-strong);
+  background: var(--c-surface-sunk);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+  letter-spacing: 0.02em;
+  color: var(--c-text-secondary);
+}
+
+.status-live, .state-accepted {
+  border-color: var(--c-success-edge); background: var(--c-success-tint); color: var(--c-success-text);
+}
+.status-terminal_failed, .state-rejected {
+  border-color: var(--c-neutral-edge); background: var(--c-neutral-tint); color: var(--c-neutral-text);
+}
+.status-unresolved, .state-unknown, .status-proposed {
+  border-color: var(--c-attention-edge); background: var(--c-attention-tint); color: var(--c-attention-text);
+}
+.state-prepared, .state-in_flight {
+  border-color: var(--c-progress-edge); background: var(--c-progress-tint); color: var(--c-progress-text);
+}
+
+.action__time, .attempt__time, .call__time {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  white-space: nowrap;
+}
+
+.action__note, .attempt__note {
+  margin-top: var(--s-2);
+  font-size: var(--fs-xs);
+  color: var(--c-text-secondary);
+}
+
+.action__empty, .attempt__empty, .progress__empty {
+  margin-top: var(--s-3);
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--c-surface-sunk);
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+}
+
+.attempts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+  padding-left: var(--s-4);
+  border-left: 2px solid var(--c-border);
+}
+
+.attempt {
+  padding: var(--s-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+}
+
+.attempt__no { font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+
+.attempt__key {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.calls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  padding-left: var(--s-3);
+  border-left: 2px dotted var(--c-border);
+}
+
+.call { padding: var(--s-2) 0; }
+
+.call__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.call__outcome {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+  letter-spacing: 0.03em;
+}
+.call__outcome.is-ok { color: var(--c-success-text); }
+.call__outcome.is-failed { color: var(--c-text-secondary); }
+
+.call__op { font-size: var(--fs-xs); color: var(--c-text-muted); }
+.call__http { font-size: var(--fs-micro); color: var(--c-text-muted); }
+
+.call__corr {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  flex-wrap: wrap;
+}

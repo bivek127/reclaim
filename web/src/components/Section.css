@@ -1,0 +1,42 @@
+.section {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--e-raised);
+}
+
+.section__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.section__title {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semi);
+  color: var(--c-text);
+}
+
+.section__note {
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  max-width: 68ch;
+}
+
+.section__aside { flex: none; }
+.section__body { padding: var(--s-5); }
+
+/* Evidence: something the system observed. */
+.section--evidence .section__head { background: var(--c-surface-sunk); }
+
+/* Advisory: recessed so it cannot outrank a financial fact. */
+.section--advisory {
+  background: var(--c-surface-sunk);
+  box-shadow: none;
+}
+.section--advisory .section__title { color: var(--c-text-secondary); font-weight: var(--fw-medium); }
+.section--advisory .section__body { color: var(--c-text-secondary); }

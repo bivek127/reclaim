@@ -1,0 +1,142 @@
+.trail { display: flex; flex-direction: column; gap: var(--s-3); }
+
+.trail__item {
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  padding: var(--s-3) var(--s-4);
+  background: var(--c-surface);
+}
+
+/* Advisory content sits on the sunk surface with lighter type: it is input to
+   a decision, not the decision. */
+.trail__item--advisory {
+  background: var(--c-surface-sunk);
+  border-style: dashed;
+}
+
+.trail__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.trail__step { font-size: var(--fs-sm); font-weight: var(--fw-semi); }
+
+.trail__verdict {
+  padding: 1px var(--s-2);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border-strong);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+  letter-spacing: 0.03em;
+}
+.verdict-allow    { border-color: var(--c-success-edge);   background: var(--c-success-tint);   color: var(--c-success-text); }
+.verdict-escalate { border-color: var(--c-attention-edge); background: var(--c-attention-tint); color: var(--c-attention-text); }
+.verdict-no_action{ border-color: var(--c-neutral-edge);   background: var(--c-neutral-tint);   color: var(--c-neutral-text); }
+
+.trail__action { font-size: var(--fs-xs); color: var(--c-text-secondary); }
+.trail__time { margin-left: auto; font-size: var(--fs-xs); color: var(--c-text-muted); white-space: nowrap; }
+
+.trail__reason {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+  flex-wrap: wrap;
+}
+.trail__code { font-size: var(--fs-xs); color: var(--c-text); }
+.trail__note { font-size: var(--fs-xs); color: var(--c-text-muted); }
+
+.trail__inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-5);
+  margin-top: var(--s-3);
+}
+.trail__inputs dt { font-size: var(--fs-micro); color: var(--c-text-muted); }
+.trail__inputs dd { margin: 2px 0 0; font-size: var(--fs-xs); color: var(--c-text); }
+.trail__inputs dd.is-flagged { color: var(--c-attention-text); font-weight: var(--fw-medium); }
+
+.trail__empty {
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--c-surface-sunk);
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+}
+
+/* ---- diagnosis ----------------------------------------------------------- */
+
+.dx__cause { font-size: var(--fs-sm); font-weight: var(--fw-semi); color: var(--c-text-secondary); }
+.dx__source { font-size: var(--fs-xs); color: var(--c-text-muted); }
+
+/* Deliberately small and neutral: never near a verdict or an amount. */
+.dx__confidence {
+  padding: 1px var(--s-2);
+  border-radius: var(--r-sm);
+  background: var(--c-neutral-tint);
+  border: 1px solid var(--c-neutral-edge);
+  font-size: var(--fs-micro);
+  color: var(--c-text-muted);
+}
+
+.dx__reasoning {
+  margin-top: var(--s-2);
+  font-size: var(--fs-xs);
+  color: var(--c-text-secondary);
+  font-style: italic;
+  max-width: 74ch;
+}
+
+.dx__recommend { margin-top: var(--s-2); font-size: var(--fs-micro); color: var(--c-text-muted); }
+
+/* ---- authorisation chain -------------------------------------------------- */
+
+.chain {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-4);
+}
+
+.chain__node {
+  flex: 1 1 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  position: relative;
+}
+
+.chain__node--advisory { background: var(--c-surface-sunk); border-style: dashed; }
+
+.chain__node:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: calc(var(--s-2) * -1 - 1px);
+  top: 50%;
+  width: 0; height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--c-border-strong);
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+.chain__label { font-size: var(--fs-micro); color: var(--c-text-muted); }
+.chain__value { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--c-text); }
+.chain__tag {
+  font-size: var(--fs-micro);
+  color: var(--c-text-faint);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+@media (max-width: 700px) {
+  .chain__node:not(:last-child)::after { display: none; }
+}

@@ -1,0 +1,67 @@
+.lifecycle { display: flex; flex-direction: column; }
+
+.lifecycle__step {
+  position: relative;
+  display: flex;
+  gap: var(--s-3);
+  padding: var(--s-2) 0 var(--s-2) var(--s-1);
+}
+
+/* The rail is drawn between markers, not behind the last one. */
+.lifecycle__step:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 22px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--c-border-strong);
+}
+
+.lifecycle__marker {
+  flex: none;
+  width: 9px; height: 9px;
+  margin-top: 7px;
+  border-radius: 50%;
+  border: 2px solid var(--c-border-strong);
+  background: var(--c-surface);
+  z-index: 1;
+}
+
+.lifecycle__step.is-current .lifecycle__marker {
+  border-color: var(--c-primary);
+  background: var(--c-primary);
+  box-shadow: 0 0 0 3px var(--c-primary-soft);
+}
+
+.lifecycle__content { min-width: 0; }
+
+.lifecycle__states { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+
+.lifecycle__from, .lifecycle__to {
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  color: var(--c-text-secondary);
+}
+.lifecycle__from { color: var(--c-text-faint); }
+.lifecycle__arrow { color: var(--c-text-faint); font-size: var(--fs-xs); }
+
+.lifecycle__meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin-top: 2px;
+  font-size: var(--fs-micro);
+  color: var(--c-text-muted);
+  flex-wrap: wrap;
+}
+
+.lifecycle__time { margin-left: auto; }
+
+.lifecycle__empty, .lifecycle__loading {
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--c-surface-sunk);
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+}
