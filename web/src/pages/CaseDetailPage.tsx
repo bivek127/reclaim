@@ -8,6 +8,7 @@ import { VerificationPanel } from "@/components/case/VerificationPanel";
 import { DecisionChain, DiagnosisTrail, PolicyTrail } from "@/components/case/DecisionTrail";
 import { ReviewContext } from "@/components/case/ReviewContext";
 import { Section } from "@/components/Section";
+import { CaseTimeline } from "@/components/timeline/CaseTimeline";
 import { EmptyState, ErrorState, SkeletonBlock } from "@/components/States";
 import { PageHeader } from "@/components/PageHeader";
 import { api, ApiError } from "@/lib/api";
@@ -121,32 +122,67 @@ export function CaseDetailPage() {
 
       {onEvents ? (
         <div className="page-body">
-          <Section
-            title="Events &amp; logs"
-            note="Reconstructed from the case's audit trail alone."
-          >
-            {history.isPending ? (
-              <SkeletonBlock height={160} />
-            ) : history.isError ? (
-              <ErrorState error={history.error} onRetry={() => history.refetch()} />
-            ) : (
-              <div className="events-preview">
-                <p className="events-preview__count">
-                  <strong>{history.data?.timeline.length ?? 0}</strong> audit events ·{" "}
-                  <strong>{history.data?.state_changes.length ?? 0}</strong> state changes ·{" "}
-                  <strong>{history.data?.stale_writes.length ?? 0}</strong> rejected stale writes
-                </p>
-                <LifecycleChain
-                  changes={history.data?.state_changes ?? []}
-                  currentState={data.case.state}
-                />
-                <p className="events-preview__note">
-                  The full forensic timeline — every event with its worker, fencing token,
-                  and structured payload — is the next surface to be built.
-                </p>
-              </div>
-            )}
-          </Section>
+          {history.isPending ? (
+            <Section title="Events &amp; logs">
+              <SkeletonBlock height={280} />
+            </Section>
+          ) : history.isError ? (
+            <Section title="Events &amp; logs">
+              {/* A failed read is never presented as an empty history. */}
+              <ErrorState
+                title="Could not read the audit trail"
+                error={history.error}
+                onRetry={() => history.refetch()}
+              />
+            </Section>
+          ) : history.data ? (
+            <>
+              {gaps.length > 0 && (
+                <div className="evidence-gap" role="note">
+                  <p className="evidence-gap__title">Incomplete forensic record</p>
+                  <p className="evidence-gap__body">
+                    The audit trail cannot supply:{" "}
+                    {gaps.map((g) => (
+                      <code key={g} className="u-mono">{g}</code>
+                    ))}
+                    . Nothing has been substituted for it.
+                  </p>
+                </div>
+              )}
+
+              {history.data.stale_writes.length > 0 && (
+                <div className="stale-note" role="note">
+                  <p className="stale-note__title">
+                    {history.data.stale_writes.length} stale{" "}
+                    {history.data.stale_writes.length === 1 ? "write" : "writes"} rejected
+                  </p>
+                  <p className="stale-note__body">
+                    A worker holding an out-of-date fencing token tried to change this case
+                    and was refused. This is the safety mechanism working, not a failure.
+                  </p>
+                </div>
+              )}
+
+              <Section
+                title="Events &amp; logs"
+                note="Reconstructed from this case's audit trail alone, in recorded order."
+                aside={
+                  <Link className="btn btn--sm" to={`/cases/${id}`}>
+                    Back to investigation
+                  </Link>
+                }
+              >
+                {history.data.timeline.length === 0 ? (
+                  <EmptyState
+                    title="No audit events recorded"
+                    description="This case has no entries in the audit trail. That is itself unusual and worth investigating."
+                  />
+                ) : (
+                  <CaseTimeline history={history.data} />
+                )}
+              </Section>
+            </>
+          ) : null}
         </div>
       ) : (
         <div className="case-body">

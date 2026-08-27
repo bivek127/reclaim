@@ -76,21 +76,6 @@
   margin: 0 2px;
 }
 
-.events-preview__count {
-  font-size: var(--fs-sm);
-  color: var(--c-text-secondary);
-  margin-bottom: var(--s-4);
-}
-.events-preview__count strong { color: var(--c-text); font-variant-numeric: tabular-nums; }
-
-.events-preview__note {
-  margin-top: var(--s-4);
-  padding-top: var(--s-3);
-  border-top: 1px dashed var(--c-border);
-  font-size: var(--fs-micro);
-  color: var(--c-text-muted);
-}
-
 @media (max-width: 1080px) {
   .case-body { grid-template-columns: 1fr; }
   .case-body__side { position: static; }
@@ -99,4 +84,25 @@
 @media (max-width: 900px) {
   .case-tabs { padding: 0 var(--s-4); }
   .case-body { padding: var(--s-4) var(--s-4) var(--s-10); }
+}
+
+/* A rejected stale write is a safety event, so it is marked for attention
+   rather than coloured as an error. */
+.stale-note {
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--c-border-strong);
+  border-left: 2px solid var(--c-progress-text);
+  border-radius: var(--r-md);
+  background: var(--c-progress-tint);
+}
+.stale-note__title {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semi);
+  color: var(--c-progress-text);
+}
+.stale-note__body {
+  margin-top: var(--s-1);
+  font-size: var(--fs-xs);
+  color: var(--c-progress-text);
+  max-width: 76ch;
 }

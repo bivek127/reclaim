@@ -1,0 +1,158 @@
+/* One rail down the left carries chronology; category is a small text label
+   rather than an icon set, so the eye reads sequence first. */
+
+.tev {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: var(--s-3);
+  position: relative;
+}
+
+.tev__rail { position: relative; display: flex; justify-content: center; }
+
+.tev__dot {
+  position: relative;
+  z-index: 1;
+  width: 7px; height: 7px;
+  margin-top: 11px;
+  border-radius: 50%;
+  background: var(--c-border-strong);
+  outline: 3px solid var(--c-surface);
+}
+
+/* Materially different event classes get different markers, not a rainbow:
+   most stay neutral, and shape distinguishes the ones that matter. */
+.tev__dot--state        { background: var(--c-primary); width: 9px; height: 9px; margin-top: 10px; }
+.tev__dot--verification { background: var(--c-success-text); }
+.tev__dot--review       { background: var(--c-attention-text); border-radius: 1px; }
+.tev__dot--policy       { background: var(--c-text-secondary); border-radius: 1px; }
+.tev__dot--provider     { background: var(--c-progress-text); transform: rotate(45deg); border-radius: 1px; }
+.tev__dot--execution    { background: var(--c-progress-text); }
+.tev__dot--concurrency  { background: var(--c-surface); border: 1.5px solid var(--c-border-strong); }
+.tev__dot--diagnosis    { background: var(--c-surface); border: 1.5px dashed var(--c-text-faint); }
+.tev__dot--system       { background: var(--c-danger-text); border-radius: 1px; }
+
+.tev__body {
+  min-width: 0;
+  padding: var(--s-1) 0 var(--s-3);
+}
+
+.tev__top {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.tev__cat {
+  flex: none;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+.tev__cat--verification { color: var(--c-success-text); }
+.tev__cat--review       { color: var(--c-attention-text); }
+.tev__cat--state        { color: var(--c-primary-text); }
+
+.tev__title {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semi);
+  color: var(--c-text);
+}
+
+/* Advisory events are visibly lighter: they authorise nothing. */
+.tev--advisory .tev__title { color: var(--c-text-secondary); font-weight: var(--fw-medium); }
+
+.tev__clock {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tev__states {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  flex-wrap: wrap;
+}
+.tev__from { font-size: var(--fs-xs); color: var(--c-text-faint); }
+.tev__arrow { color: var(--c-text-faint); }
+
+.tev__summary {
+  margin-top: var(--s-2);
+  font-size: var(--fs-xs);
+  color: var(--c-text-secondary);
+  max-width: 82ch;
+}
+.tev--advisory .tev__summary { font-style: italic; color: var(--c-text-muted); }
+
+.tev__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  margin-top: var(--s-2);
+  font-size: var(--fs-micro);
+  color: var(--c-text-muted);
+}
+
+.tev__tie {
+  padding: 0 var(--s-2);
+  border-radius: var(--r-sm);
+  background: var(--c-surface-sunk);
+  border: 1px solid var(--c-border);
+  color: var(--c-text-faint);
+}
+
+.tev__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--c-text-muted);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+}
+.tev__toggle:hover { color: var(--c-text); }
+
+.tev__caret {
+  width: 0; height: 0;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-left: 4px solid currentColor;
+  transition: transform var(--t-fast);
+}
+.tev__caret.is-open { transform: rotate(90deg); }
+
+.tev__tech {
+  margin-top: var(--s-3);
+  padding: var(--s-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background: var(--c-surface-sunk);
+}
+
+.tev__tech-head {
+  margin: var(--s-4) 0 var(--s-2);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+
+/* Attention events get a left edge, so they are findable without colouring
+   the whole row. */
+.tev--attention .tev__body {
+  border-left: 2px solid var(--c-attention-edge);
+  margin-left: calc(var(--s-3) * -1);
+  padding-left: var(--s-3);
+}

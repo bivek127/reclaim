@@ -1,0 +1,65 @@
+.tl__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.tl__cats { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+.tl__right { display: flex; gap: var(--s-2); align-items: center; margin-left: auto; }
+
+.chip--sm { padding: 3px var(--s-2); font-size: var(--fs-xs); }
+
+.tl__count {
+  padding: 0 4px;
+  border-radius: 7px;
+  background: var(--c-surface-sunk);
+  border: 1px solid var(--c-border);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text-muted);
+}
+.chip--on .tl__count { background: var(--c-surface); }
+
+.tl__summary {
+  margin: var(--s-3) 0 var(--s-4);
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+}
+.tl__summary strong { color: var(--c-text); font-variant-numeric: tabular-nums; }
+.tl__hidden { color: var(--c-text-faint); }
+
+/* The rail belongs to the list, not to each row, so it runs unbroken from the
+   first event to the last regardless of day markers or filtering. */
+.tl__list { display: block; position: relative; }
+
+.tl__list::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 14px;
+  bottom: 14px;
+  width: 1px;
+  background: var(--c-border);
+}
+
+.tl__day-item { display: block; position: relative; z-index: 2; }
+
+/* Day markers anchor long histories without breaking the single rail. */
+.tl__day {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: var(--s-4) 0 var(--s-2);
+  padding: var(--s-1) 0;
+  background: var(--c-surface);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+}
+.tl__group:first-child .tl__day { margin-top: 0; }

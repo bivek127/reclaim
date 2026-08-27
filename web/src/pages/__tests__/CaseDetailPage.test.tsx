@@ -272,9 +272,10 @@ describe("case investigation workspace", () => {
     renderCase();
     const tab = (await screen.findAllByRole("link", { name: /events & logs/i }))[0]!;
     await user.click(tab);
-    expect(await screen.findByText(/audit events/i)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /events & logs/i })).toBeInTheDocument();
     // The case header stays: context is preserved across the tab change.
     expect(screen.getByRole("heading", { name: "Case #1" })).toBeInTheDocument();
+    expect(screen.getByText("Verified Recovered")).toBeInTheDocument();
   });
 
   it("reveals technical identifiers only on request", async () => {
@@ -325,5 +326,73 @@ describe("case investigation workspace", () => {
     vi.spyOn(api, "timeline").mockResolvedValue(history());
     renderCase();
     expect(await screen.findByText(/no recovery action was ever opened/i)).toBeInTheDocument();
+  });
+
+  it("renders the forensic record on the events tab", async () => {
+    vi.spyOn(api, "case").mockResolvedValue(detail());
+    vi.spyOn(api, "timeline").mockResolvedValue(history({
+      timeline: [{
+        id: 1, occurred_at: "2026-08-27T16:28:22.815+05:30", event_type: "case_created",
+        obligation_id: 1, case_id: 1, action_id: null, attempt_id: null,
+        provider_request_id: null, worker_id: null, fencing_token: null,
+        prev_state: null, new_state: "NEW", reason_code: "case_created",
+        model: null, model_version: null, policy_version: null, reviewer_ref: null,
+        provider_correlation_id: null, detail: { anchor_canonical: "order:ord_4101" },
+      }],
+    }));
+    renderCase("/cases/1/timeline");
+    expect(await screen.findByRole("heading", { name: "Case opened" })).toBeInTheDocument();
+    expect(screen.getByText(/Opened against order:ord_4101/)).toBeInTheDocument();
+  });
+
+  it("offers a route back to the investigation from the record", async () => {
+    vi.spyOn(api, "case").mockResolvedValue(detail());
+    vi.spyOn(api, "timeline").mockResolvedValue(history({ timeline: [] }));
+    renderCase("/cases/1/timeline");
+    const back = await screen.findByRole("link", { name: /back to investigation/i });
+    expect(back).toHaveAttribute("href", "/cases/1");
+  });
+
+  it("never shows a failed audit read as an empty history", async () => {
+    vi.spyOn(api, "case").mockResolvedValue(detail());
+    vi.spyOn(api, "timeline").mockRejectedValue(new ApiError(500, "audit store unavailable"));
+    renderCase("/cases/1/timeline");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/audit store unavailable/i);
+    expect(screen.queryByText(/No audit events recorded/)).not.toBeInTheDocument();
+  });
+
+  it("distinguishes a genuinely empty audit trail", async () => {
+    vi.spyOn(api, "case").mockResolvedValue(detail());
+    vi.spyOn(api, "timeline").mockResolvedValue(history({ timeline: [] }));
+    renderCase("/cases/1/timeline");
+    expect(await screen.findByText("No audit events recorded")).toBeInTheDocument();
+  });
+
+  it("flags an incomplete forensic record on the events tab", async () => {
+    vi.spyOn(api, "case").mockResolvedValue(detail());
+    vi.spyOn(api, "timeline").mockResolvedValue(
+      history({ timeline: [], unreconstructable: ["provider_correlation_id"] }),
+    );
+    renderCase("/cases/1/timeline");
+    expect(await screen.findByText("Incomplete forensic record")).toBeInTheDocument();
+    expect(screen.getByText(/Nothing has been substituted/)).toBeInTheDocument();
+  });
+
+  it("explains rejected stale writes as the safety mechanism working", async () => {
+    const stale = {
+      id: 9, occurred_at: "2026-08-27T16:28:22.900+05:30", event_type: "stale_write_rejected",
+      obligation_id: 1, case_id: 1, action_id: null, attempt_id: null,
+      provider_request_id: null, worker_id: "slow", fencing_token: 2,
+      prev_state: null, new_state: null, reason_code: "stale_write_rejected",
+      model: null, model_version: null, policy_version: null, reviewer_ref: null,
+      provider_correlation_id: null, detail: {},
+    };
+    vi.spyOn(api, "case").mockResolvedValue(detail());
+    vi.spyOn(api, "timeline").mockResolvedValue(
+      history({ timeline: [stale], stale_writes: [stale] }),
+    );
+    renderCase("/cases/1/timeline");
+    expect(await screen.findByText(/1 stale write rejected/)).toBeInTheDocument();
+    expect(screen.getByText(/not a failure/)).toBeInTheDocument();
   });
 });
