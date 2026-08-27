@@ -13,6 +13,7 @@ import { RecentActivity } from "@/components/overview/RecentActivity";
 import { api, ApiError } from "@/lib/api";
 import { deadlineDistance, relativeFromNow } from "@/lib/time";
 import "./OverviewPage.css";
+import { casesPath, reviewPath, reviewsPath } from "@/lib/routes";
 
 /**
  * The operations landing screen.
@@ -128,7 +129,7 @@ export function OverviewPage() {
             <Section
               title="Needs attention"
               note="Highest value first. These will not resolve without a human."
-              aside={<Link className="btn btn--sm" to="/cases?attention=1">All cases</Link>}
+              aside={<Link className="btn btn--sm" to={casesPath({ attention: true })}>All cases</Link>}
             >
               {attention.isPending ? (
                 <SkeletonRows rows={4} columns={3} />
@@ -145,7 +146,7 @@ export function OverviewPage() {
             <Section
               title="Awaiting human review"
               note="Approving proposes an action; the executor dispatches it."
-              aside={<Link className="btn btn--sm" to="/reviews">Review queue</Link>}
+              aside={<Link className="btn btn--sm" to={reviewsPath()}>Review queue</Link>}
             >
               {reviews.isPending ? (
                 <SkeletonRows rows={3} columns={3} />
@@ -163,7 +164,7 @@ export function OverviewPage() {
                     const lapsed = expiry?.expired === true;
                     return (
                       <li key={row.review_id}>
-                        <Link className="ov-review" to={`/reviews/${row.case_id}`}>
+                        <Link className="ov-review" to={reviewPath(row.case_id)}>
                           <span className="ov-review__id">#{row.case_id}</span>
                           <span className="ov-review__cust u-mono">{row.customer_ref}</span>
                           <StatusBadge state={row.case_state} />

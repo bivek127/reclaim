@@ -15,6 +15,7 @@ import { api, ApiError } from "@/lib/api";
 import { absolute } from "@/lib/time";
 import type { PolicyDecision } from "@/lib/types";
 import "./ReviewDetailPage.css";
+import { casePath, caseTimelinePath, reviewsPath } from "@/lib/routes";
 
 const REASON_TEXT: Record<string, string> = {
   policy_escalate_budget:
@@ -90,7 +91,7 @@ export function ReviewDetailPage() {
             <EmptyState
               title={`No case #${id}`}
               description="It may have been removed, or the link may be wrong."
-              action={<Link className="btn btn--secondary" to="/reviews">Back to reviews</Link>}
+              action={<Link className="btn btn--secondary" to={reviewsPath()}>Back to reviews</Link>}
             />
           ) : (
             <ErrorState title="Could not load this review" error={detail.error} onRetry={() => detail.refetch()} />
@@ -113,7 +114,7 @@ export function ReviewDetailPage() {
           <EmptyState
             title="This case has never been escalated"
             description="Only cases the system handed to a human appear in the review workspace."
-            action={<Link className="btn btn--secondary" to={`/cases/${id}`}>Open the case instead</Link>}
+            action={<Link className="btn btn--secondary" to={casePath(id)}>Open the case instead</Link>}
           />
         </div>
       </>
@@ -134,7 +135,7 @@ export function ReviewDetailPage() {
     <>
       <header className="rv-head">
         <nav className="rv-head__crumbs" aria-label="Breadcrumb">
-          <Link to="/reviews">Reviews</Link>
+          <Link to={reviewsPath()}>Reviews</Link>
           <span aria-hidden="true">/</span>
           <span aria-current="page">Case #{c.case_id}</span>
         </nav>
@@ -154,8 +155,8 @@ export function ReviewDetailPage() {
             </dl>
           </div>
           <div className="rv-head__links">
-            <Link className="btn btn--sm" to={`/cases/${id}`}>Full investigation</Link>
-            <Link className="btn btn--sm" to={`/cases/${id}/timeline`}>Events &amp; logs</Link>
+            <Link className="btn btn--sm" to={casePath(id)}>Full investigation</Link>
+            <Link className="btn btn--sm" to={caseTimelinePath(id)}>Events &amp; logs</Link>
           </div>
         </div>
       </header>

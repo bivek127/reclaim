@@ -64,12 +64,18 @@ export function compact(iso: string | null | undefined): string {
   });
 }
 
-/** Full, unambiguous instant for tooltips and forensic reading. */
+/**
+ * Full, unambiguous instant for tooltips and forensic reading.
+ *
+ * 24-hour, like every other clock in the console. A forensic timestamp that
+ * switches convention between a tooltip and the timeline row beneath it forces
+ * the reader to convert before they can compare two instants.
+ */
 export function absolute(iso: string | null | undefined): string {
   const d = parse(iso);
   if (!d) return "—";
   return d.toLocaleString(undefined, {
     year: "numeric", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
   });
 }

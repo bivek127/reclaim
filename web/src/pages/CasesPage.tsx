@@ -46,7 +46,7 @@ export function CasesPage() {
           attentionStates={meta.data?.attention_states ?? []}
           activeCount={activeCount}
           resultTotal={total}
-          onSearch={(q) => update({ q })}
+          onSearch={(q) => update({ q }, { replace: true })}
           onToggleState={toggleState}
           onToggleAttention={() => update({ needsAttention: !filters.needsAttention })}
           onTogglePendingReview={() => update({ pendingReview: !filters.pendingReview })}

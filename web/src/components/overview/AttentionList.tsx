@@ -6,6 +6,7 @@ import { presentationFor } from "@/lib/states";
 import { absolute, deadlineDistance, relativeFromNow } from "@/lib/time";
 import type { CaseRow } from "@/lib/types";
 import "./AttentionList.css";
+import { casesPath } from "@/lib/routes";
 
 interface Props {
   rows: CaseRow[];
@@ -83,7 +84,7 @@ export function AttentionList({ rows, total }: Props) {
 
       {total > rows.length && (
         <p className="attn__more">
-          <Link to="/cases?attention=1">
+          <Link to={casesPath({ attention: true })}>
             {total - rows.length} more needing attention
           </Link>
         </p>

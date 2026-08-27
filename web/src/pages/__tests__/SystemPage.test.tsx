@@ -327,7 +327,7 @@ describe("SystemPage — navigation", () => {
     show();
     const nav = await screen.findByRole("navigation", { name: "Operational surfaces" });
     expect(within(nav).getByRole("link", { name: "Cases needing a human" }))
-      .toHaveAttribute("href", "/cases?needs_attention=true");
+      .toHaveAttribute("href", "/cases?attention=1");
     expect(within(nav).getByRole("link", { name: "Pending reviews" }))
       .toHaveAttribute("href", "/reviews");
   });

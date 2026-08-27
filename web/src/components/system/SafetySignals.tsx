@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { casesPath } from "@/lib/routes";
 import type { SystemStatus } from "@/lib/types";
 import "./SafetySignals.css";
 
@@ -63,7 +64,7 @@ export function SafetySignals({ system }: { system: SystemStatus }) {
           ? "Execution attempts still prepared, in flight, or of unknown outcome. Reconciliation decides these; money may have moved."
           : "Every execution attempt has reached a known outcome.",
       notable: system.unresolved_attempts > 0,
-      to: "/cases?state=AMBIGUOUS&state=RECONCILING",
+      to: casesPath({ states: ["AMBIGUOUS", "RECONCILING"] }),
       toLabel: "Review unresolved cases",
     },
   ];

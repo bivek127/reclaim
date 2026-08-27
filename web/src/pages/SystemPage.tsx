@@ -8,6 +8,7 @@ import { AttachmentPanel } from "@/components/system/AttachmentPanel";
 import { SafetySignals } from "@/components/system/SafetySignals";
 import { SystemEvents } from "@/components/system/SystemEvents";
 import { StateVocabulary } from "@/components/system/StateVocabulary";
+import { casesPath, reviewsPath } from "@/lib/routes";
 import { api } from "@/lib/api";
 import "./SystemPage.css";
 
@@ -103,9 +104,9 @@ export function SystemPage() {
 
         <nav className="sysp__nav" aria-label="Operational surfaces">
           <span className="u-label">Where to look next</span>
-          <Link to="/cases?needs_attention=true">Cases needing a human</Link>
-          <Link to="/reviews">Pending reviews</Link>
-          <Link to="/cases">All cases</Link>
+          <Link to={casesPath({ attention: true })}>Cases needing a human</Link>
+          <Link to={reviewsPath()}>Pending reviews</Link>
+          <Link to={casesPath()}>All cases</Link>
         </nav>
 
         <Section

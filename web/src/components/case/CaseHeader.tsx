@@ -5,6 +5,7 @@ import { isTerminal, presentationFor } from "@/lib/states";
 import { absolute, deadlineDistance, relativeFromNow } from "@/lib/time";
 import type { CaseDetail } from "@/lib/types";
 import "./CaseHeader.css";
+import { casesPath } from "@/lib/routes";
 
 interface Props {
   detail: CaseDetail;
@@ -32,7 +33,7 @@ export function CaseHeader({ detail }: Props) {
   return (
     <header className="case-head">
       <nav className="case-head__crumbs" aria-label="Breadcrumb">
-        <Link to="/cases">Cases</Link>
+        <Link to={casesPath()}>Cases</Link>
         <span aria-hidden="true">/</span>
         <span aria-current="page">Case #{c.case_id}</span>
       </nav>

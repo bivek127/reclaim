@@ -16,6 +16,12 @@ export class ApiError extends Error {
   /** True when the case moved under the operator — a reload will show why. */
   readonly isConflict: boolean;
   readonly isUnreachable: boolean;
+  /**
+   * The service failed rather than refusing. A refusal is a decision the domain
+   * made and explained; a fault leaves the outcome genuinely unknown to the
+   * caller, so a consequential action must be re-read rather than retried.
+   */
+  readonly isServerFault: boolean;
 
   constructor(status: number, message: string) {
     super(message);
@@ -23,6 +29,7 @@ export class ApiError extends Error {
     this.status = status;
     this.isConflict = status === 409;
     this.isUnreachable = status === 502 || status === 503 || status === 0;
+    this.isServerFault = status >= 500;
   }
 }
 

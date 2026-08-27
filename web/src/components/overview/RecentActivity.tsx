@@ -3,6 +3,7 @@ import { CATEGORIES, categoryOf, titleOf } from "@/lib/events";
 import { absolute, relativeFromNow } from "@/lib/time";
 import type { ActivityEvent, AuditEvent } from "@/lib/types";
 import "./RecentActivity.css";
+import { casePath } from "@/lib/routes";
 
 /**
  * What changed across the estate most recently.
@@ -46,7 +47,7 @@ export function RecentActivity({ events }: { events: ActivityEvent[] }) {
               <p className="act__line">
                 <span className="act__what">{titleOf(widened)}</span>
                 {event.case_id !== null ? (
-                  <Link className="act__case" to={`/cases/${event.case_id}`}>
+                  <Link className="act__case" to={casePath(event.case_id)}>
                     case #{event.case_id}
                   </Link>
                 ) : (

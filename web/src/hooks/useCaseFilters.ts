@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { CaseQuery } from "@/lib/api";
+import { CASE_PARAM } from "@/lib/routes";
 
 /**
  * Queue filters held in the URL.
@@ -39,42 +40,49 @@ export function useCaseFilters() {
   const [params, setParams] = useSearchParams();
 
   const filters: CaseFilters = useMemo(() => {
-    const rawSort = params.get("sort") ?? "updated_at";
-    const rawPage = Number(params.get("page") ?? "1");
+    const rawSort = params.get(CASE_PARAM.sort) ?? "updated_at";
+    const rawPage = Number(params.get(CASE_PARAM.page) ?? "1");
     return {
-      q: params.get("q") ?? "",
-      states: params.getAll("state"),
-      needsAttention: params.get("attention") === "1",
-      pendingReview: params.get("review") === "1",
+      q: params.get(CASE_PARAM.query) ?? "",
+      states: params.getAll(CASE_PARAM.state),
+      needsAttention: params.get(CASE_PARAM.attention) === "1",
+      pendingReview: params.get(CASE_PARAM.review) === "1",
       sort: (SORT_VALUES.includes(rawSort) ? rawSort : "updated_at") as SortValue,
-      direction: params.get("dir") === "asc" ? "asc" : "desc",
+      direction: params.get(CASE_PARAM.direction) === "asc" ? "asc" : "desc",
       page: Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1,
       pageSize: PAGE_SIZE,
     };
   }, [params]);
 
-  /** Any change other than paging returns to page one. */
+  /**
+   * Any change other than paging returns to page one.
+   *
+   * Discrete choices push a history entry so Back undoes the last filter
+   * rather than leaving the queue entirely. Typing in the search box replaces
+   * instead, because the field is debounced and every pause would otherwise
+   * become its own entry for the operator to walk back through.
+   */
   const update = useCallback(
-    (patch: Partial<CaseFilters>) => {
+    (patch: Partial<CaseFilters>, { replace = false }: { replace?: boolean } = {}) => {
       const next = new URLSearchParams();
       const merged = { ...filters, ...patch };
       const resetPage = !("page" in patch);
 
-      if (merged.q.trim()) next.set("q", merged.q.trim());
-      merged.states.forEach((s) => next.append("state", s));
-      if (merged.needsAttention) next.set("attention", "1");
-      if (merged.pendingReview) next.set("review", "1");
-      if (merged.sort !== "updated_at") next.set("sort", merged.sort);
-      if (merged.direction !== "desc") next.set("dir", merged.direction);
+      if (merged.q.trim()) next.set(CASE_PARAM.query, merged.q.trim());
+      merged.states.forEach((s) => next.append(CASE_PARAM.state, s));
+      if (merged.needsAttention) next.set(CASE_PARAM.attention, "1");
+      if (merged.pendingReview) next.set(CASE_PARAM.review, "1");
+      if (merged.sort !== "updated_at") next.set(CASE_PARAM.sort, merged.sort);
+      if (merged.direction !== "desc") next.set(CASE_PARAM.direction, merged.direction);
       const page = resetPage ? 1 : merged.page;
-      if (page > 1) next.set("page", String(page));
+      if (page > 1) next.set(CASE_PARAM.page, String(page));
 
-      setParams(next, { replace: true });
+      setParams(next, { replace });
     },
     [filters, setParams],
   );
 
-  const clear = useCallback(() => setParams(new URLSearchParams(), { replace: true }), [setParams]);
+  const clear = useCallback(() => setParams(new URLSearchParams()), [setParams]);
 
   const toggleState = useCallback(
     (state: string) => {

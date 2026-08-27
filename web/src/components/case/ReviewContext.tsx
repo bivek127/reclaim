@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { absolute, deadlineDistance, relativeFromNow } from "@/lib/time";
 import type { CaseDetail, PolicyDecision } from "@/lib/types";
 import "./ReviewContext.css";
+import { reviewPath } from "@/lib/routes";
 
 /**
  * Human review context.
@@ -86,7 +87,7 @@ export function ReviewContext({ detail }: { detail: CaseDetail }) {
 
               {pending ? (
                 <div className="review__cta">
-                  <Link className="btn btn--consequential" to={`/reviews/${detail.case.case_id}`}>
+                  <Link className="btn btn--consequential" to={reviewPath(detail.case.case_id)}>
                     Open review workspace
                   </Link>
                   <p className="review__cta-note">

@@ -7,6 +7,8 @@ import { useReviewer } from "@/hooks/useReviewer";
 import { absolute, deadlineDistance } from "@/lib/time";
 import type { CaseDetail, HumanReview } from "@/lib/types";
 import "./DecisionPanel.css";
+import { caseTimelinePath } from "@/lib/routes";
+import { StatusBadge } from "@/components/StatusBadge";
 
 interface Props {
   detail: CaseDetail;
@@ -70,6 +72,9 @@ export function DecisionPanel({ detail, review, reviewableActions, onDecided }: 
   });
 
   const conflict = decision.error instanceof ApiError && decision.error.isConflict;
+  // A fault is not a refusal: the service never told us what it decided, so the
+  // outcome is unknown and must be re-read rather than asserted either way.
+  const fault = decision.error instanceof ApiError && decision.error.isServerFault;
   const busy = decision.isPending;
 
   if (decided) {
@@ -94,14 +99,14 @@ export function DecisionPanel({ detail, review, reviewableActions, onDecided }: 
           )}
           <div>
             <dt>Resulting case state</dt>
-            <dd>{detail.case.state}</dd>
+            <dd><StatusBadge state={detail.case.state} /></dd>
           </div>
         </dl>
         <p className="dp__note">
           This review is closed. Any further change to the case happens through the
           normal recovery path, not through this screen.
         </p>
-        <Link className="btn btn--sm" to={`/cases/${detail.case.case_id}/timeline`}>
+        <Link className="btn btn--sm" to={caseTimelinePath(detail.case.case_id)}>
           See it in the audit trail
         </Link>
       </div>
@@ -173,11 +178,21 @@ export function DecisionPanel({ detail, review, reviewableActions, onDecided }: 
       {decision.isError && (
         <div className="dp__error" role="alert">
           <p className="dp__error-title">
-            {conflict ? "This case changed" : "The decision was not applied"}
+            {conflict
+              ? "This case changed"
+              : fault
+                ? "The service failed while recording this decision"
+                : "The decision was not applied"}
           </p>
           <p className="dp__error-body">
             {decision.error instanceof Error ? decision.error.message : "Unknown failure."}
           </p>
+          {fault && (
+            <p className="dp__error-body">
+              Whether it was recorded is unknown from here. Reload this review and
+              read the current state before deciding again.
+            </p>
+          )}
           <button
             type="button"
             className="btn btn--sm"

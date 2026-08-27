@@ -13,6 +13,7 @@ import { EmptyState, ErrorState, SkeletonBlock } from "@/components/States";
 import { PageHeader } from "@/components/PageHeader";
 import { api, ApiError } from "@/lib/api";
 import "./CaseDetailPage.css";
+import { casePath, caseTimelinePath, casesPath } from "@/lib/routes";
 
 /**
  * The case investigation workspace.
@@ -79,7 +80,7 @@ export function CaseDetailPage() {
             <EmptyState
               title={`No case #${id}`}
               description="It may have been removed, or the link may be wrong."
-              action={<Link className="btn btn--secondary" to="/cases">Back to cases</Link>}
+              action={<Link className="btn btn--secondary" to={casesPath()}>Back to cases</Link>}
             />
           ) : (
             <ErrorState
@@ -102,14 +103,14 @@ export function CaseDetailPage() {
 
       <nav className="case-tabs" aria-label="Case views">
         <Link
-          to={`/cases/${id}`}
+          to={casePath(id)}
           className={`case-tabs__tab${!onEvents ? " is-active" : ""}`}
           aria-current={!onEvents ? "page" : undefined}
         >
           Overview
         </Link>
         <Link
-          to={`/cases/${id}/timeline`}
+          to={caseTimelinePath(id)}
           className={`case-tabs__tab${onEvents ? " is-active" : ""}`}
           aria-current={onEvents ? "page" : undefined}
         >
@@ -167,7 +168,7 @@ export function CaseDetailPage() {
                 title="Events &amp; logs"
                 note="Reconstructed from this case's audit trail alone, in recorded order."
                 aside={
-                  <Link className="btn btn--sm" to={`/cases/${id}`}>
+                  <Link className="btn btn--sm" to={casePath(id)}>
                     Back to investigation
                   </Link>
                 }
@@ -211,7 +212,7 @@ export function CaseDetailPage() {
               title="How this case reached its current state"
               note="Every transition below comes from the audit trail."
               aside={
-                <Link className="btn btn--sm" to={`/cases/${id}/timeline`}>
+                <Link className="btn btn--sm" to={caseTimelinePath(id)}>
                   Events &amp; logs
                 </Link>
               }

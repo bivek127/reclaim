@@ -8,6 +8,7 @@ import { EmptyState, ErrorState, SkeletonRows } from "@/components/States";
 import { api } from "@/lib/api";
 import { absolute, deadlineDistance, relativeFromNow } from "@/lib/time";
 import "./ReviewsPage.css";
+import { casesPath } from "@/lib/routes";
 
 const TABS = [
   { value: "PENDING", label: "Awaiting decision" },
@@ -93,7 +94,7 @@ export function ReviewsPage() {
                   ? "Cases appear here when policy refuses to act automatically, or when a payment window closes without payment."
                   : "Decisions of this kind will be listed here once they are made."
               }
-              action={<Link className="btn btn--secondary" to="/cases">Browse cases</Link>}
+              action={<Link className="btn btn--secondary" to={casesPath()}>Browse cases</Link>}
             />
           ) : (
             <div className="table-wrap">

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { humanizeState, presentationFor } from "@/lib/states";
 import "./StateDistribution.css";
+import { casesPath } from "@/lib/routes";
 
 interface Props {
   counts: Record<string, number>;
@@ -37,7 +38,7 @@ export function StateDistribution({ counts, order }: Props) {
           const { semantic } = presentationFor(state);
           return (
             <li key={state}>
-              <Link className="dist__row" to={`/cases?state=${state}`}>
+              <Link className="dist__row" to={casesPath({ states: [state] })}>
                 <span className="dist__name">
                   {humanizeState(state)}
                   <span className="dist__code u-mono">{state}</span>

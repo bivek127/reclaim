@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { Overview, SystemStatus as SystemStatusData } from "@/lib/types";
 import "./SystemStatus.css";
+import { systemPath } from "@/lib/routes";
 
 interface Props {
   overview: Overview;
@@ -77,7 +78,7 @@ export function SystemStatus({ overview, system, environment, unreachable }: Pro
         </dl>
       )}
 
-      <Link className="sys__link" to="/system">Operational detail</Link>
+      <Link className="sys__link" to={systemPath()}>Operational detail</Link>
     </div>
   );
 }
