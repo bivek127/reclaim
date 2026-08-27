@@ -1,0 +1,132 @@
+.table-wrap {
+  overflow-x: auto;
+  border-top-left-radius: var(--r-lg);
+  border-top-right-radius: var(--r-lg);
+}
+
+.ctable {
+  width: 100%;
+  min-width: 940px;          /* below this the table scrolls rather than crushes */
+  border-collapse: collapse;
+  table-layout: fixed;       /* deliberate column widths, not browser guesswork */
+  font-size: var(--fs-sm);
+}
+
+/* Widths are assigned to the work each column does, so the eye lands on
+   amount and state rather than crossing empty space to reach them. */
+.ctable col.col-case     { width: 116px; }
+.ctable col.col-customer { width: auto;  }   /* text column absorbs the slack */
+.ctable col.col-amount   { width: 132px; }
+.ctable col.col-state    { width: 232px; }
+.ctable col.col-attempts { width: 92px;  }
+.ctable col.col-window   { width: 148px; }
+.ctable col.col-updated  { width: 104px; }
+
+.ctable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--s-2) var(--s-4);
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-surface-sunk);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ctable th.is-numeric, .ctable td.is-numeric { text-align: right; }
+
+.ctable__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+}
+
+.ctable__sort:hover { color: var(--c-text); }
+.ctable__sort[aria-sort="ascending"], .ctable__sort[aria-sort="descending"] { color: var(--c-primary-text); }
+
+.ctable__arrow { font-size: 9px; line-height: 1; }
+
+.ctable tbody tr {
+  border-bottom: 1px solid var(--c-border);
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+
+.ctable tbody tr:hover { background: var(--c-surface-sunk); }
+.ctable tbody tr:focus-visible { background: var(--c-primary-soft); outline-offset: -2px; }
+.ctable tbody tr:last-child { border-bottom: none; }
+
+.ctable td {
+  padding: var(--s-2) var(--s-4);
+  height: var(--row-h);
+  vertical-align: middle;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A left edge marks rows a human must act on: a second, non-colour signal. */
+.ctable tbody tr.is-attention { box-shadow: inset 2px 0 0 var(--c-attention-text); }
+
+/* Truncation must never hide a state name, so the state cell may wrap. */
+.ctable td:has(.cell-state) { white-space: normal; }
+
+/* Two lines earn their height: the id navigates, the order reference is what
+   a colleague searches by. Line heights are tightened to hold row density. */
+.cell-case { display: flex; flex-direction: column; gap: 0; line-height: 1.3; }
+.cell-case__id { font-weight: var(--fw-semi); font-variant-numeric: tabular-nums; }
+.cell-case__anchor {
+  font-size: var(--fs-micro);
+  color: var(--c-text-muted);
+  font-family: var(--font-mono);
+  line-height: 1.2;
+}
+
+.cell-customer { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--c-text-secondary); }
+
+.cell-state { display: flex; align-items: center; gap: var(--s-2); }
+
+.cell-attempts { font-variant-numeric: tabular-nums; color: var(--c-text-secondary); }
+.cell-attempts.is-spent { color: var(--c-attention-text); font-weight: var(--fw-medium); }
+
+.cell-window { font-size: var(--fs-xs); white-space: nowrap; }
+.cell-window.is-open { color: var(--c-text-secondary); }
+.cell-window.is-urgent { color: var(--c-attention-text); font-weight: var(--fw-medium); }
+.cell-window.is-passed { color: var(--c-text-faint); }
+
+.cell-time { font-size: var(--fs-xs); color: var(--c-text-muted); white-space: nowrap; }
+
+/* Small badge marking a case waiting on a human decision. */
+.review-flag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--s-2);
+  border: 1px solid var(--c-attention-edge);
+  border-radius: 9px;
+  background: var(--c-attention-tint);
+  color: var(--c-attention-text);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+  white-space: nowrap;
+}
+
+/* Narrower than this, the operational metrics columns are dropped rather than
+   crushed. The min-width relaxes with them so the remaining columns fit
+   without horizontal scrolling. */
+@media (max-width: 1100px) {
+  .ctable .col-optional { display: none; }
+  .ctable { min-width: 0; }
+}
