@@ -51,6 +51,13 @@ from reclaim.domain.states import CASE_STATES, CaseState
 # it, so it is never presented as a choice.
 REVIEWABLE_ACTIONS = ("CREATE_PAYMENT_LINK",)
 
+# The partial unique index enforcing "at most one open action per case". A
+# violation of it is a refusal the domain intends, not a fault, so this layer
+# gives it the conflict status it deserves. Matched by index name rather than
+# by message text, and never widened to unique violations in general: any other
+# constraint failing here is an unexpected fault and must stay one.
+ONE_OPEN_ACTION_INDEX = "uq_case_one_open_action"
+
 app = FastAPI(title="Reclaim Operations API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
@@ -214,6 +221,17 @@ def _decide(case_id: int, body: ReviewDecision, *, approve: bool) -> dict[str, A
                 )
         except ReviewBlocked as exc:
             raise HTTPException(409, str(exc)) from exc
+        except psycopg.errors.UniqueViolation as exc:
+            if exc.diag.constraint_name != ONE_OPEN_ACTION_INDEX:
+                raise
+            # The domain transaction rolled back: the review is still PENDING,
+            # the existing action is untouched, and no second one was created.
+            raise HTTPException(
+                409,
+                "This case already has an open recovery action. Only one action "
+                "may be open at a time, so another cannot be proposed until the "
+                "current one resolves.",
+            ) from exc
         finally:
             _release_lease(conn, case_id, claim.fencing_token)
 

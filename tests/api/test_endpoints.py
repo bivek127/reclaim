@@ -246,6 +246,108 @@ def test_decision_releases_the_console_lease(client: TestClient,
     assert holder is None
 
 
+def _open_action(conn: psycopg.Connection, ids: dict, *, status: str = "LIVE") -> int:
+    """Give the case an action that is already open, as a live dispatch would."""
+    row = conn.execute(
+        """
+        INSERT INTO recovery_actions (
+            case_id, action_type, status, sequence_no, policy_decision_id
+        ) VALUES (%s, 'CREATE_PAYMENT_LINK', %s, 1, %s)
+        RETURNING id
+        """,
+        (ids["case_id"], status, ids["policy_decision_id"]),
+    ).fetchone()
+    assert row is not None
+    return int(row[0])
+
+
+def test_approving_a_case_with_an_open_action_conflicts(
+    client: TestClient, conn: psycopg.Connection
+) -> None:
+    """One open action per case is a refusal, so it must not read as a fault.
+
+    The invariant is enforced by a partial unique index rather than by a domain
+    guard, so without translation it reaches the boundary as a persistence
+    error and would be reported as a server failure.
+    """
+    ids = seed_escalated(conn)
+    existing = _open_action(conn, ids)
+
+    status, body = client.post(
+        f"/api/reviews/{ids['case_id']}/approve",
+        {"reviewer_ref": "ops@example.com",
+         "selected_action": "CREATE_PAYMENT_LINK"},
+    )
+
+    assert status == 409
+    detail = body["detail"]
+    assert "open recovery action" in detail
+    # The operator is told what the system decided, not how it is stored.
+    assert "uq_case_one_open_action" not in detail
+    assert "psycopg" not in detail and "duplicate key" not in detail
+
+    # Nothing about the case moved.
+    state = conn.execute(
+        "SELECT state::text FROM recovery_cases WHERE id = %s", (ids["case_id"],)
+    ).fetchone()[0]
+    assert state == CaseState.ESCALATED.value
+
+    review = conn.execute(
+        "SELECT status::text, reviewer_ref, decided_at FROM human_reviews "
+        "WHERE case_id = %s", (ids["case_id"],)
+    ).fetchone()
+    assert review == ("PENDING", None, None), "a refused approval must not decide the review"
+
+    actions = conn.execute(
+        "SELECT id, status::text FROM recovery_actions WHERE case_id = %s ORDER BY id",
+        (ids["case_id"],),
+    ).fetchall()
+    assert actions == [(existing, "LIVE")], "no second action may be created"
+
+    attempts = conn.execute(
+        "SELECT count(*) FROM execution_attempts WHERE case_id = %s",
+        (ids["case_id"],),
+    ).fetchone()[0]
+    assert attempts == 0
+
+
+def test_api_still_serves_requests_after_an_open_action_conflict(
+    client: TestClient, conn: psycopg.Connection
+) -> None:
+    """A rolled-back statement must leave the pooled connection usable."""
+    ids = seed_escalated(conn)
+    _open_action(conn, ids)
+    assert client.post(
+        f"/api/reviews/{ids['case_id']}/approve",
+        {"reviewer_ref": "ops@example.com",
+         "selected_action": "CREATE_PAYMENT_LINK"},
+    )[0] == 409
+
+    assert client.get("/api/system")[0] == 200
+    assert client.get(f"/api/cases/{ids['case_id']}")[0] == 200
+
+    # The same case can still be decided the other way.
+    assert client.post(f"/api/reviews/{ids['case_id']}/reject",
+                       {"reviewer_ref": "ops@example.com"})[0] == 200
+
+
+def test_open_action_conflict_releases_the_console_lease(
+    client: TestClient, conn: psycopg.Connection
+) -> None:
+    """A refusal must not strand the case under the console's lease."""
+    ids = seed_escalated(conn)
+    _open_action(conn, ids)
+    client.post(
+        f"/api/reviews/{ids['case_id']}/approve",
+        {"reviewer_ref": "ops@example.com",
+         "selected_action": "CREATE_PAYMENT_LINK"},
+    )
+    holder = conn.execute(
+        "SELECT worker_id FROM recovery_cases WHERE id = %s", (ids["case_id"],)
+    ).fetchone()[0]
+    assert holder is None
+
+
 def test_review_on_non_escalated_case_conflicts(client: TestClient,
                                                 conn: psycopg.Connection) -> None:
     ids = seed_awaiting_customer(conn, suffix="api2")
