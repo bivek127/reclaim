@@ -1,0 +1,134 @@
+.shell {
+  display: grid;
+  grid-template-columns: var(--nav-w) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.shell__skip {
+  position: absolute;
+  left: -9999px;
+  z-index: 100;
+  padding: var(--s-2) var(--s-4);
+  background: var(--c-primary);
+  color: var(--c-text-inverse);
+  border-radius: var(--r-sm);
+}
+.shell__skip:focus { left: var(--s-4); top: var(--s-4); }
+
+/* ---- navigation rail ---------------------------------------------------- */
+
+.shell__nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-5) var(--s-3);
+  border-right: 1px solid var(--c-border);
+  background: var(--c-surface);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-2);
+}
+
+/* A recovering arc: the mark is drawn, not an emoji or stock glyph. */
+.brand__mark {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  border: 2.5px solid var(--c-primary);
+  border-right-color: transparent;
+  transform: rotate(-45deg);
+}
+
+.brand__name {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semi);
+  letter-spacing: -0.015em;
+  color: var(--c-text);
+}
+
+.nav { display: flex; flex-direction: column; gap: 1px; }
+
+.nav__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  color: var(--c-text-secondary);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.nav__item:hover { background: var(--c-surface-sunk); color: var(--c-text); text-decoration: none; }
+
+.nav__item--active {
+  background: var(--c-primary-soft);
+  color: var(--c-primary-text);
+  font-weight: var(--fw-semi);
+}
+
+/* Amber: a human is needed. The only place the accent appears in the rail. */
+.nav__count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--c-attention-tint);
+  border: 1px solid var(--c-attention-edge);
+  color: var(--c-attention-text);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semi);
+  text-align: center;
+  line-height: 16px;
+}
+
+.shell__foot { margin-top: auto; padding: 0 var(--s-2); }
+
+.env {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-2);
+  border-top: 1px solid var(--c-border);
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+}
+
+.env__dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--c-success-text);
+  flex: none;
+}
+
+.env__name { font-family: var(--font-mono); font-size: var(--fs-micro); }
+
+/* ---- main column -------------------------------------------------------- */
+
+.shell__main { min-width: 0; background: var(--c-canvas); }
+
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; }
+  .shell__nav {
+    position: static;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--s-4);
+    border-right: none;
+    border-bottom: 1px solid var(--c-border);
+    padding: var(--s-3) var(--s-4);
+  }
+  .nav { flex-direction: row; gap: var(--s-1); }
+  .shell__foot { margin-top: 0; margin-left: auto; }
+  .env { border-top: none; }
+}

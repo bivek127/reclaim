@@ -1,0 +1,32 @@
+.money {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Tier 1 of the trust hierarchy: the figure a page exists to explain. */
+.money--hero {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semi);
+  letter-spacing: -0.02em;
+  color: var(--c-text);
+}
+
+.money--strong {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semi);
+  color: var(--c-text);
+}
+
+.money--inline {
+  font-size: inherit;
+  font-weight: var(--fw-medium);
+  color: var(--c-text);
+}
+
+.money__code {
+  margin-left: var(--s-2);
+  font-size: 0.72em;
+  font-weight: var(--fw-medium);
+  color: var(--c-text-muted);
+  letter-spacing: 0.02em;
+}

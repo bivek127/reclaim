@@ -1,0 +1,29 @@
+.ident {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: 100%;
+  padding: 1px var(--s-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background: var(--c-surface-sunk);
+  color: var(--c-text-secondary);
+  font-size: var(--fs-xs);
+  text-align: left;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.ident:hover { border-color: var(--c-border-strong); background: var(--c-surface); }
+
+.ident--empty {
+  color: var(--c-text-faint);
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+.ident__hint {
+  color: var(--c-success-text);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+}

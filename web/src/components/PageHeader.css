@@ -1,0 +1,30 @@
+.page-header {
+  padding: var(--s-6) var(--s-8) 0;
+  max-width: var(--content-max);
+}
+
+.page-header__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-6);
+}
+
+.page-header__title {
+  font-size: var(--fs-lg);
+  letter-spacing: -0.02em;
+  color: var(--c-text);
+}
+
+.page-header__desc {
+  margin-top: var(--s-1);
+  font-size: var(--fs-sm);
+  color: var(--c-text-secondary);
+  max-width: 70ch;
+}
+
+.page-header__actions { display: flex; gap: var(--s-2); flex: none; }
+
+@media (max-width: 900px) {
+  .page-header { padding: var(--s-5) var(--s-4) 0; }
+}

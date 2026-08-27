@@ -1,0 +1,37 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 2px var(--s-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+/* Shape carries the same information as colour, for non-colour perception. */
+.badge__marker {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  background: currentColor;
+}
+
+.badge--success   { color: var(--c-success-text);   background: var(--c-success-tint);   border-color: var(--c-success-edge); }
+.badge--attention { color: var(--c-attention-text); background: var(--c-attention-tint); border-color: var(--c-attention-edge); }
+.badge--danger    { color: var(--c-danger-text);    background: var(--c-danger-tint);    border-color: var(--c-danger-edge); }
+.badge--progress  { color: var(--c-progress-text);  background: var(--c-progress-tint);  border-color: var(--c-progress-edge); }
+.badge--waiting   { color: var(--c-waiting-text);   background: var(--c-waiting-tint);   border-color: var(--c-waiting-edge); }
+.badge--neutral   { color: var(--c-neutral-text);   background: var(--c-neutral-tint);   border-color: var(--c-neutral-edge); }
+
+/* Attention states get a square marker as well as amber: two signals, not one. */
+.badge--attention .badge__marker,
+.badge--danger .badge__marker { border-radius: 1px; }
+
+.badge--progress .badge__marker {
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
