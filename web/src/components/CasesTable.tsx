@@ -7,6 +7,7 @@ import { deadlineDistance, absolute } from "@/lib/time";
 import type { CaseRow } from "@/lib/types";
 import type { SortValue } from "@/hooks/useCaseFilters";
 import "./CasesTable.css";
+import { casePath } from "@/lib/routes";
 
 interface Props {
   rows: CaseRow[];
@@ -29,7 +30,7 @@ export function CasesTable({ rows, sort, direction, onSort }: Props) {
   const arrow = direction === "asc" ? "▲" : "▼";
 
   function open(caseId: number) {
-    navigate(`/cases/${caseId}`);
+    navigate(casePath(caseId));
   }
 
   function sortable(key: SortValue, label: string, numeric = false) {

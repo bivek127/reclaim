@@ -48,7 +48,10 @@ export function deadlineDistance(
   else if (magnitude < DAY) {
     const h = Math.floor(magnitude / HOUR);
     const m = Math.floor((magnitude % HOUR) / MINUTE);
-    amount = m > 0 ? `${h}h ${m}m` : `${h}h`;
+    // Minutes matter while a window is short enough to still act on. Past six
+    // hours they are noise, and the longer string is what overflows a dense
+    // table column as the data ages.
+    amount = h < 6 && m > 0 ? `${h}h ${m}m` : `${h}h`;
   } else amount = `${Math.floor(magnitude / DAY)}d`;
 
   return { text: expired ? `closed ${amount} ago` : `in ${amount}`, expired };

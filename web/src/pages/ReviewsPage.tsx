@@ -8,7 +8,7 @@ import { EmptyState, ErrorState, SkeletonRows } from "@/components/States";
 import { api } from "@/lib/api";
 import { absolute, deadlineDistance, relativeFromNow } from "@/lib/time";
 import "./ReviewsPage.css";
-import { casesPath } from "@/lib/routes";
+import { casesPath, reviewPath } from "@/lib/routes";
 
 const TABS = [
   { value: "PENDING", label: "Awaiting decision" },
@@ -131,11 +131,11 @@ export function ReviewsPage() {
                         role="link"
                         aria-label={`Review case ${row.case_id}, ${row.case_state}`}
                         className={lapsed ? "is-attention" : undefined}
-                        onClick={() => navigate(`/reviews/${row.case_id}`)}
+                        onClick={() => navigate(reviewPath(row.case_id))}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
-                            navigate(`/reviews/${row.case_id}`);
+                            navigate(reviewPath(row.case_id));
                           }
                         }}
                       >

@@ -30,8 +30,12 @@ export function BreakerPanel({ breaker, indeterminate = false }: Props) {
         <div className="brk__head">
           <span className="brk__mark brk__mark--unknown" aria-hidden="true" />
           <div>
-            <p className="u-label">Circuit breaker</p>
-            <h2 className="brk__state" id="brk-h">Unknown</h2>
+            <p className="u-label" aria-hidden="true">Circuit breaker</p>
+            {/* The heading carries its subject: read out of context in a list
+                of headings, a bare "CLOSED" says nothing about what closed. */}
+            <h2 className="brk__state" id="brk-h">
+              <span className="u-visually-hidden">Circuit breaker: </span>Unknown
+            </h2>
           </div>
         </div>
         <p className="brk__meaning">
@@ -50,8 +54,10 @@ export function BreakerPanel({ breaker, indeterminate = false }: Props) {
       <div className="brk__head">
         <span className={`brk__mark brk__mark--${open ? "open" : "closed"}`} aria-hidden="true" />
         <div>
-          <p className="u-label">Circuit breaker</p>
-          <h2 className="brk__state" id="brk-h">{breaker.state}</h2>
+          <p className="u-label" aria-hidden="true">Circuit breaker</p>
+          <h2 className="brk__state" id="brk-h">
+            <span className="u-visually-hidden">Circuit breaker: </span>{breaker.state}
+          </h2>
         </div>
         <p className="brk__meaning">
           {open

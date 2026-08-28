@@ -83,7 +83,7 @@
 .input {
   width: 100%;
   padding: 6px var(--s-3);
-  border: 1px solid var(--c-border-strong);
+  border: 1px solid var(--c-control-border);
   border-radius: var(--r-md);
   background: var(--c-surface);
   font-size: var(--fs-sm);

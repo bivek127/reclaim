@@ -7,6 +7,11 @@
  *
  * Status is never communicated by colour alone: every badge pairs a tint with
  * its literal state name and a shape marker.
+ *
+ * Recession is structural, not chromatic. Advisory content is set apart by a
+ * sunk background, lighter weight, dashed markers and explicit labelling, so
+ * the greys below stay readable at 11px instead of carrying the hierarchy on
+ * their own. Every text token meets WCAG AA on the surfaces it is used on.
  */
 
 :root {
@@ -19,12 +24,15 @@
 
   --c-border:        #e3e7ed;
   --c-border-strong: #cfd6e0;
+  /* An empty text field is identified by its boundary alone, so that boundary
+     carries a contrast requirement the decorative rules above do not. */
+  --c-control-border:#8496b0;
   --c-border-focus:  #1e3a5f;
 
   --c-text:          #10151c;   /* primary reading colour               */
   --c-text-secondary:#4a5566;   /* labels, supporting copy              */
-  --c-text-muted:    #6b7789;   /* timestamps, de-emphasised metadata   */
-  --c-text-faint:    #8b95a6;   /* tier-4 advisory content              */
+  --c-text-muted:    #657081;   /* timestamps, de-emphasised metadata   */
+  --c-text-faint:    #6b778c;   /* tier-4 advisory content              */
   --c-text-inverse:  #ffffff;
 
   /* ---- primary: deep ink navy ---------------------------------------- */

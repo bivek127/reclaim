@@ -6,7 +6,7 @@ import { presentationFor } from "@/lib/states";
 import { absolute, deadlineDistance, relativeFromNow } from "@/lib/time";
 import type { CaseRow } from "@/lib/types";
 import "./AttentionList.css";
-import { casesPath } from "@/lib/routes";
+import { casePath, casesPath } from "@/lib/routes";
 
 interface Props {
   rows: CaseRow[];
@@ -46,11 +46,11 @@ export function AttentionList({ rows, total }: Props) {
               tabIndex={0}
               role="link"
               aria-label={`Case ${row.case_id}, ${row.state}`}
-              onClick={() => navigate(`/cases/${row.case_id}`)}
+              onClick={() => navigate(casePath(row.case_id))}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  navigate(`/cases/${row.case_id}`);
+                  navigate(casePath(row.case_id));
                 }
               }}
             >

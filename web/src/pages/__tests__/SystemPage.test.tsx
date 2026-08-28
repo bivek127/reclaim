@@ -114,7 +114,7 @@ describe("SystemPage — attachment and liveness", () => {
 describe("SystemPage — circuit breaker", () => {
   it("states plainly that dispatch is permitted when closed", async () => {
     show();
-    const breaker = await screen.findByRole("region", { name: "CLOSED" });
+    const breaker = await screen.findByRole("region", { name: "Circuit breaker: CLOSED" });
     expect(within(breaker).getByText(/Dispatch to the provider is permitted/)).toBeInTheDocument();
     // A calm breaker must not borrow the outage language.
     expect(within(breaker).queryByText(/Recovery has not stopped/)).not.toBeInTheDocument();
@@ -132,7 +132,7 @@ describe("SystemPage — circuit breaker", () => {
       }),
     );
     show();
-    const breaker = await screen.findByRole("region", { name: "OPEN" });
+    const breaker = await screen.findByRole("region", { name: "Circuit breaker: OPEN" });
     expect(within(breaker).getByText(/Dispatch to the provider is stopped/)).toBeInTheDocument();
     expect(within(breaker).getByText("3")).toBeInTheDocument();
     expect(within(breaker).getByText(/development seed/)).toBeInTheDocument();
@@ -148,7 +148,7 @@ describe("SystemPage — circuit breaker", () => {
       }),
     );
     show();
-    const breaker = await screen.findByRole("region", { name: "OPEN" });
+    const breaker = await screen.findByRole("region", { name: "Circuit breaker: OPEN" });
     expect(
       within(breaker).getByText(/Recovery has not stopped/),
     ).toBeInTheDocument();
@@ -169,7 +169,7 @@ describe("SystemPage — circuit breaker", () => {
       }),
     );
     show();
-    const breaker = await screen.findByRole("region", { name: "OPEN" });
+    const breaker = await screen.findByRole("region", { name: "Circuit breaker: OPEN" });
     expect(within(breaker).getByText(/Reset due after/)).toBeInTheDocument();
     expect(
       within(breaker).getByText(/does not close on its own; a monitor job has to close it/),
@@ -186,7 +186,7 @@ describe("SystemPage — circuit breaker", () => {
       }),
     );
     show();
-    const breaker = await screen.findByRole("region", { name: "CLOSED" });
+    const breaker = await screen.findByRole("region", { name: "Circuit breaker: CLOSED" });
     expect(
       within(breaker).getByText(/2 consecutive execution failures have been counted/),
     ).toBeInTheDocument();
@@ -198,7 +198,7 @@ describe("SystemPage — fail-closed behaviour", () => {
   it("reports the breaker as unknown rather than closed when status cannot be read", async () => {
     vi.spyOn(api, "system").mockRejectedValue(new ApiError(0, "unreachable"));
     show();
-    const breaker = await screen.findByRole("region", { name: "Unknown" });
+    const breaker = await screen.findByRole("region", { name: "Circuit breaker: Unknown" });
     expect(
       within(breaker).getByText(/not the same as a closed breaker/),
     ).toBeInTheDocument();
@@ -219,7 +219,7 @@ describe("SystemPage — fail-closed behaviour", () => {
     show();
     expect(await screen.findByText("System events are unavailable")).toBeInTheDocument();
     // The breaker and attachment panels are unaffected.
-    expect(await screen.findByRole("region", { name: "CLOSED" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Circuit breaker: CLOSED" })).toBeInTheDocument();
     const attachment = within(await findSection("Attachment"));
     expect(await attachment.findByText("reclaim_dev")).toBeInTheDocument();
   });
