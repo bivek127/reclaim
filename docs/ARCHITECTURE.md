@@ -1,12 +1,12 @@
 # Reclaim — Hardened Architecture
 
-**Scope:** the identity model, concurrency model, state machine, AI/simulator boundaries, and the invariant table — hardened against the failure sequences a payments engineer would actually attack. Deliberately **not** included: System Context / Container / Component / ERD / full-sequence diagrams, and 10-column invariant tables. These document things a solo builder already holds in working memory; they don't stop a double charge. One diagram is included — the one that does.
+**Scope:** the identity model, concurrency model, state machine, AI/simulator boundaries, and the architecture contract in §13 — hardened against the failure sequences a payments engineer would actually attack. Deliberately **not** included: System Context / Container / Component / ERD / full-sequence diagrams, and 10-column invariant tables. These document things a solo builder already holds in working memory; they don't stop a double charge. One diagram is included — the one that does.
 
 ---
 
 ## 1. Identity hierarchy
 
-An earlier design deduped actions on `case_id`. That does not protect what the identity rule is actually for — one recovery per underlying failed payment. Deduping cases on `payment_id` is an improvement, but still wrong: `payment_id` isn't stable. Every attempt against the same obligation (the customer's own retry, our `retry_charge`, a second authorization attempt) gets its own `payment_id`. Deduping on it lets each new attempt slip in as a "new" obligation.
+Deduping actions on `case_id` does not protect what the identity rule is actually for — one recovery per underlying failed payment. Deduping cases on `payment_id` is closer, but still wrong: `payment_id` isn't stable. Every attempt against the same obligation (the customer's own retry, our `retry_charge`, a second authorization attempt) gets its own `payment_id`. Deduping on it lets each new attempt slip in as a "new" obligation.
 
 The actual hierarchy:
 
@@ -138,7 +138,7 @@ A sweeper reclaims any row where `lease_expires_at < now()`, independent of whet
 | Notification (SMS/email) send | No — own small bounded retry | 3 tries, doesn't restart the case |
 | **Financial recovery action / execution attempt** | **Yes** | `attempt_count <= max_attempts` |
 
-Only the last row moves money. This is the fix for "an Ollama JSON hiccup silently burns your case's attempt budget," which was the sharpest gap in the previous version.
+Only the last row moves money. That is what stops an Ollama JSON hiccup, or any other non-financial retry, from silently burning a case's attempt budget.
 
 Amplification stays bounded because none of these multiply against each other: a flurry of webhook redeliveries produces one case (dedup layer), a flurry of LLM retries produces one diagnosis (capped ladder), and reconciliation runs on its own clock rather than in proportion to inbound traffic.
 
