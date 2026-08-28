@@ -80,7 +80,7 @@ def spec(name: str, kind: JobKind, started: list[str]) -> JobSpec:
         connect=lambda: None, operation=lambda *a, **k: started.append(name),
     )
     if kind is JobKind.PER_CASE:
-        return JobSpec(**common, expected_state=CaseState.NEW, lease_seconds=30)
+        return JobSpec(**common, expected_states=(CaseState.NEW,), lease_seconds=30)
     return JobSpec(**common, limit=100)
 
 

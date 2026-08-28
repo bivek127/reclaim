@@ -77,7 +77,7 @@ def test_the_monitor_is_registered_as_a_batch_job() -> None:
     """A singleton row is not a queue of cases: no state to claim, no lease."""
     spec = register_batch_jobs(JobRegistry()).get(BREAKER_MONITOR)
     assert spec.kind is JobKind.BATCH
-    assert spec.expected_state is None and spec.lease_seconds is None
+    assert spec.expected_states is None and spec.lease_seconds is None
 
 
 def test_the_interval_comes_from_operational_configuration() -> None:

@@ -46,7 +46,7 @@ def start(spec: JobSpec) -> None:
             name=spec.name,
             connect=spec.connect,
             operation=spec.operation,
-            expected_state=spec.expected_state,  # type: ignore[arg-type]
+            expected_states=spec.expected_states,  # type: ignore[arg-type]
             worker_id=spec.name,
             lease_seconds=spec.lease_seconds,  # type: ignore[arg-type]
             interval_seconds=spec.interval_seconds,

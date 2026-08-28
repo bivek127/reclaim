@@ -97,7 +97,7 @@ def test_each_job_is_registered_as_a_batch_job(
 ) -> None:
     spec = registry.get(name)
     assert spec.kind is JobKind.BATCH
-    assert spec.expected_state is None, "a batch job claims no single case"
+    assert spec.expected_states is None, "a batch job claims no single case"
     assert spec.lease_seconds is None, "the runtime holds no lease for a batch job"
 
 

@@ -140,7 +140,10 @@ def register_per_case_jobs(
                 link_ttl_seconds=int(values["payment_link_ttl_seconds"]), **kwargs
             ),
             connect=app_conn,
-            expected_state=CaseState.ACTION_READY,
+            # Human approval executes through this same job: review leaves the
+            # case ESCALATED with an open PROPOSED action, and the executor is
+            # the component that performs the move to EXECUTING.
+            expected_states=(CaseState.ACTION_READY, CaseState.ESCALATED),
             lease_seconds=lease_seconds_for("execution"),
         )
     )
@@ -151,7 +154,7 @@ def register_per_case_jobs(
             interval_seconds=int(values["reconciliation_interval_seconds"]),
             operation=reconciler_operation(**kwargs),
             connect=app_conn,
-            expected_state=CaseState.AMBIGUOUS,
+            expected_states=(CaseState.AMBIGUOUS,),
             lease_seconds=lease_seconds_for("reconciliation"),
         )
     )
@@ -164,7 +167,7 @@ def register_per_case_jobs(
             interval_seconds=int(values["verifier_interval_seconds"]),
             operation=verifier_operation(**kwargs),
             connect=verifier_conn,
-            expected_state=CaseState.AWAITING_CUSTOMER,
+            expected_states=(CaseState.AWAITING_CUSTOMER,),
             lease_seconds=lease_seconds_for("verification"),
         )
     )

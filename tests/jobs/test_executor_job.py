@@ -147,7 +147,7 @@ def test_the_accessor_mutates_nothing(conn: psycopg.Connection) -> None:
 def test_the_executor_matches_its_declared_contract(registry: JobRegistry) -> None:
     spec = registry.get(EXECUTOR)
     assert spec.kind is JobKind.PER_CASE
-    assert spec.expected_state is CaseState.ACTION_READY
+    assert spec.expected_states == (CaseState.ACTION_READY, CaseState.ESCALATED)
     assert spec.lease_seconds == lease_seconds_for("execution") == 60
     assert spec.interval_seconds == int(load_operational()["executor_interval_seconds"])
     assert spec.interval_seconds == 5
@@ -222,8 +222,8 @@ def test_a_successful_tick_releases_the_lease(
 
     run_per_case(
         name=spec.name, connect=connect_to(conn),
-        operation=lambda _c, _cid, *, fencing_token: None,
-        expected_state=spec.expected_state, worker_id=spec.name,
+        operation=lambda _c, _cid, *, fencing_token, **_: None,
+        expected_states=spec.expected_states, worker_id=spec.name,
         lease_seconds=spec.lease_seconds, interval_seconds=spec.interval_seconds,
         should_continue=at_most(1), clock=FakeClock(),
     )
@@ -241,7 +241,7 @@ def test_a_domain_failure_releases_the_lease(
 
     ticks = run_per_case(
         name=spec.name, connect=connect_to(conn), operation=spec.operation,
-        expected_state=spec.expected_state, worker_id=spec.name,
+        expected_states=spec.expected_states, worker_id=spec.name,
         lease_seconds=spec.lease_seconds, interval_seconds=spec.interval_seconds,
         should_continue=at_most(1), clock=FakeClock(),
     )
@@ -262,8 +262,8 @@ def test_a_case_held_by_another_worker_is_left_alone(
     called: list[int] = []
     run_per_case(
         name=spec.name, connect=connect_to(conn),
-        operation=lambda _c, cid, *, fencing_token: called.append(cid),
-        expected_state=spec.expected_state, worker_id=spec.name,
+        operation=lambda _c, cid, *, fencing_token, **_: called.append(cid),
+        expected_states=spec.expected_states, worker_id=spec.name,
         lease_seconds=spec.lease_seconds, interval_seconds=spec.interval_seconds,
         should_continue=at_most(1), clock=FakeClock(),
     )
@@ -282,7 +282,7 @@ def test_a_stale_token_cannot_move_the_case(
     outcomes: list[bool] = []
     spec = registry.get(EXECUTOR)
 
-    def write_stale(c, cid, *, fencing_token):
+    def write_stale(c, cid, *, fencing_token, **_):
         outcomes.append(
             fenced_transition(
                 c, cid, CaseState.ACTION_READY, CaseState.EXECUTING, stale,
@@ -292,7 +292,7 @@ def test_a_stale_token_cannot_move_the_case(
 
     run_per_case(
         name=spec.name, connect=connect_to(conn), operation=write_stale,
-        expected_state=spec.expected_state, worker_id=spec.name,
+        expected_states=spec.expected_states, worker_id=spec.name,
         lease_seconds=spec.lease_seconds, interval_seconds=spec.interval_seconds,
         should_continue=at_most(1), clock=FakeClock(),
     )
@@ -318,3 +318,148 @@ def test_the_executor_does_not_call_the_provider_itself(
     registry.get(EXECUTOR).operation(conn, case_id, fencing_token=1)
 
     assert len(captured) == 1, "passed through, not invoked"
+
+
+# ---- the human-review path ------------------------------------------------
+#
+# Review leaves the case ESCALATED with an open PROPOSED action, and the
+# invariant table names the executor as the component that moves it to
+# EXECUTING. These cover the branch; what dispatch then does is the execution
+# and review suites' subject.
+
+
+def approved_escalated_case(conn: psycopg.Connection, suffix: str) -> int:
+    """A case a reviewer has approved: ESCALATED, with an open PROPOSED action."""
+    from reclaim.domain.review import approve_review
+    from tests.domain.review_helpers import seed_escalated
+
+    ids = seed_escalated(conn)
+    approve_review(
+        conn,
+        ids["case_id"],
+        selected_action="CREATE_PAYMENT_LINK",
+        reviewer_ref=f"reviewer_{suffix}",
+        fencing_token=0,
+    )
+    conn.execute(
+        "UPDATE recovery_cases SET lease_expires_at = '-infinity' WHERE id = %s",
+        (ids["case_id"],),
+    )
+    return ids["case_id"]
+
+
+def test_the_executor_claims_both_entry_states(registry: JobRegistry) -> None:
+    """Automated and human-approved work go through one executor, not two."""
+    spec = registry.get(EXECUTOR)
+    assert spec.expected_states == (CaseState.ACTION_READY, CaseState.ESCALATED)
+
+
+def test_an_escalated_case_needs_no_authorising_allow_decision(
+    registry: JobRegistry, conn: psycopg.Connection, monkeypatch
+) -> None:
+    """A case escalated at policy time has only an ESCALATE decision.
+
+    Requiring an ALLOW here would block every approved action on such a case.
+    """
+    import reclaim.jobs.percase as percase
+
+    case_id = approved_escalated_case(conn, "no_allow")
+    assert authorising_decision_id(conn, case_id) is None, "no ALLOW exists"
+
+    looked_up: list[int] = []
+    monkeypatch.setattr(
+        percase, "authorising_decision_id",
+        lambda c, cid: looked_up.append(cid),
+    )
+    seen: list[dict] = []
+    monkeypatch.setattr(
+        percase, "dispatch", lambda conn, cid, **kw: seen.append({"case": cid, **kw})
+    )
+
+    registry.get(EXECUTOR).operation(
+        conn, case_id, fencing_token=7, claimed_state=CaseState.ESCALATED
+    )
+
+    assert looked_up == [], "the accessor was not consulted"
+    assert len(seen) == 1
+    assert seen[0]["policy_decision_id"] is None, "not applicable, not invented"
+    assert seen[0]["fencing_token"] == 7
+
+
+def test_an_action_ready_case_still_requires_an_allow_decision(
+    registry: JobRegistry, conn: psycopg.Connection, monkeypatch
+) -> None:
+    """The automated path is unchanged."""
+    import reclaim.jobs.percase as percase
+
+    case_id = seed_case(conn, "still_required")
+    monkeypatch.setattr(
+        percase, "dispatch",
+        lambda *a, **k: pytest.fail("dispatch ran without an authorising decision"),
+    )
+
+    with pytest.raises(RuntimeError, match="no authorising policy decision"):
+        registry.get(EXECUTOR).operation(
+            conn, case_id, fencing_token=1, claimed_state=CaseState.ACTION_READY
+        )
+
+
+def test_an_approved_case_reaches_dispatch_through_the_executor(
+    registry: JobRegistry, conn: psycopg.Connection, monkeypatch
+) -> None:
+    """End to end through the job: claim ESCALATED, then dispatch."""
+    import reclaim.jobs.percase as percase
+
+    case_id = approved_escalated_case(conn, "end_to_end")
+    seen: list[tuple] = []
+    monkeypatch.setattr(
+        percase, "dispatch",
+        lambda conn, cid, **kw: seen.append((cid, kw["fencing_token"])),
+    )
+
+    spec = registry.get(EXECUTOR)
+    run_per_case(
+        name=spec.name, connect=connect_to(conn), operation=spec.operation,
+        expected_states=spec.expected_states, worker_id=spec.name,
+        lease_seconds=spec.lease_seconds, interval_seconds=spec.interval_seconds,
+        should_continue=at_most(1), clock=FakeClock(),
+    )
+
+    assert len(seen) == 1 and seen[0][0] == case_id
+    assert lease_row(conn, case_id)[0] is None, "lease released"
+
+
+def test_an_escalated_case_awaiting_review_is_refused_by_the_domain(
+    registry: JobRegistry, conn: psycopg.Connection
+) -> None:
+    """No PROPOSED action means no approval, and the guard stays the domain's.
+
+    The job does not pre-filter: `prepare_dispatch` aborts, the tick records
+    the failure and the lease is released.
+    """
+    from reclaim.domain.execution import DispatchAborted
+    from tests.domain.review_helpers import seed_escalated
+
+    ids = seed_escalated(conn)
+    case_id = ids["case_id"]
+    conn.execute(
+        "UPDATE recovery_cases SET lease_expires_at = '-infinity' WHERE id = %s",
+        (case_id,),
+    )
+    open_actions = conn.execute(
+        "SELECT count(*) FROM recovery_actions WHERE case_id = %s AND status = 'PROPOSED'",
+        (case_id,),
+    ).fetchone()[0]
+    assert open_actions == 0, "nothing was approved"
+
+    spec = registry.get(EXECUTOR)
+    ticks = run_per_case(
+        name=spec.name, connect=connect_to(conn), operation=spec.operation,
+        expected_states=spec.expected_states, worker_id=spec.name,
+        lease_seconds=spec.lease_seconds, interval_seconds=spec.interval_seconds,
+        should_continue=at_most(1), clock=FakeClock(),
+    )
+
+    assert isinstance(ticks[0].error, DispatchAborted)
+    assert lease_row(conn, case_id)[0] is None, "released after the refusal"
+    assert lease_row(conn, case_id)[2] == "ESCALATED", "state untouched"

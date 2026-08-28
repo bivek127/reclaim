@@ -21,7 +21,7 @@ def per_case_spec(name: str = "execute", **over) -> JobSpec:
     values = dict(
         name=name, kind=JobKind.PER_CASE, interval_seconds=5,
         operation=lambda conn, cid, *, fencing_token: None, connect=lambda: None,
-        expected_state=CaseState.ACTION_READY, lease_seconds=60,
+        expected_states=(CaseState.ACTION_READY,), lease_seconds=60,
     )
     values.update(over)
     return JobSpec(**values)
@@ -49,9 +49,9 @@ def test_a_duplicate_registration_is_refused() -> None:
 
 
 def test_a_per_case_job_must_declare_what_it_claims_and_for_how_long() -> None:
-    with pytest.raises(ValueError, match="expected_state and lease_seconds"):
-        per_case_spec(expected_state=None)
-    with pytest.raises(ValueError, match="expected_state and lease_seconds"):
+    with pytest.raises(ValueError, match="expected_states and lease_seconds"):
+        per_case_spec(expected_states=None)
+    with pytest.raises(ValueError, match="expected_states and lease_seconds"):
         per_case_spec(lease_seconds=None)
 
 

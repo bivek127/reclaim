@@ -161,8 +161,8 @@ def test_per_case_runner_passes_the_claims_fencing_token_unchanged(
     run_per_case(
         name="probe",
         connect=connect_to(conn),
-        operation=lambda _c, cid, *, fencing_token: seen.append((cid, fencing_token)),
-        expected_state=CaseState.NEW,
+        operation=lambda _c, cid, *, fencing_token, **_: seen.append((cid, fencing_token)),
+        expected_states=(CaseState.NEW,),
         worker_id="probe",
         lease_seconds=30,
         interval_seconds=5,
@@ -181,8 +181,8 @@ def test_per_case_runner_releases_the_lease_after_success(
     run_per_case(
         name="probe",
         connect=connect_to(conn),
-        operation=lambda _c, _cid, *, fencing_token: None,
-        expected_state=CaseState.NEW,
+        operation=lambda _c, _cid, *, fencing_token, **_: None,
+        expected_states=(CaseState.NEW,),
         worker_id="probe",
         lease_seconds=30,
         interval_seconds=5,
@@ -201,14 +201,14 @@ def test_per_case_runner_releases_the_lease_after_a_domain_failure(
     """A raising operation must not strand the case for a full lease period."""
     case_id = seed_case(conn, "NEW", "boom")
 
-    def explode(_c, _cid, *, fencing_token):
+    def explode(_c, _cid, *, fencing_token, **_):
         raise RuntimeError("domain refused")
 
     ticks = run_per_case(
         name="probe",
         connect=connect_to(conn),
         operation=explode,
-        expected_state=CaseState.NEW,
+        expected_states=(CaseState.NEW,),
         worker_id="probe",
         lease_seconds=30,
         interval_seconds=5,
@@ -229,8 +229,8 @@ def test_an_idle_tick_is_not_a_failure(conn: psycopg.Connection) -> None:
     ticks = run_per_case(
         name="probe",
         connect=connect_to(conn),
-        operation=lambda _c, cid, *, fencing_token: called.append(cid),
-        expected_state=CaseState.RECONCILING,
+        operation=lambda _c, cid, *, fencing_token, **_: called.append(cid),
+        expected_states=(CaseState.RECONCILING,),
         worker_id="probe",
         lease_seconds=30,
         interval_seconds=5,
@@ -259,8 +259,8 @@ def test_the_runner_claims_through_the_domain_not_by_writing_columns(
     run_per_case(
         name="probe",
         connect=connect_to(conn),
-        operation=lambda _c, cid, *, fencing_token: called.append(cid),
-        expected_state=CaseState.NEW,
+        operation=lambda _c, cid, *, fencing_token, **_: called.append(cid),
+        expected_states=(CaseState.NEW,),
         worker_id="probe",
         lease_seconds=30,
         interval_seconds=5,
@@ -287,7 +287,7 @@ def test_stale_fencing_stays_the_domains_decision(conn: psycopg.Connection) -> N
     stale_token = lease_row(conn, case_id)[2]
     outcomes: list[bool] = []
 
-    def write_with_a_stale_token(c, cid, *, fencing_token):
+    def write_with_a_stale_token(c, cid, *, fencing_token, **_):
         # Deliberately ignore the fresh token and use the pre-claim one.
         outcomes.append(
             fenced_transition(
@@ -300,7 +300,7 @@ def test_stale_fencing_stays_the_domains_decision(conn: psycopg.Connection) -> N
         name="probe",
         connect=connect_to(conn),
         operation=write_with_a_stale_token,
-        expected_state=CaseState.NEW,
+        expected_states=(CaseState.NEW,),
         worker_id="probe",
         lease_seconds=30,
         interval_seconds=5,

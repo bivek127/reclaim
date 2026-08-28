@@ -19,6 +19,7 @@ import psycopg
 from reclaim.domain.execution import dispatch
 from reclaim.domain.policy import authorising_decision_id
 from reclaim.domain.reconciliation import reconcile_case
+from reclaim.domain.states import CaseState
 from reclaim.domain.verification import verify_case
 from reclaim.provider.config import load_provider_config
 from reclaim.provider.contract import PaymentProvider
@@ -43,7 +44,9 @@ def reconciler_operation(provider: ProviderFactory = default_provider) -> Any:
     configuration and owns both transactions around the network call.
     """
 
-    def operation(conn: psycopg.Connection, case_id: int, *, fencing_token: int) -> Any:
+    def operation(
+        conn: psycopg.Connection, case_id: int, *, fencing_token: int, **_: Any
+    ) -> Any:
         return reconcile_case(
             conn,
             case_id,
@@ -68,7 +71,9 @@ def verifier_operation(provider: ProviderFactory = default_provider) -> Any:
     compare rather than the runtime pre-filtering the queue.
     """
 
-    def operation(conn: psycopg.Connection, case_id: int, *, fencing_token: int) -> Any:
+    def operation(
+        conn: psycopg.Connection, case_id: int, *, fencing_token: int, **_: Any
+    ) -> Any:
         return verify_case(
             conn,
             case_id,
@@ -84,11 +89,18 @@ def verifier_operation(provider: ProviderFactory = default_provider) -> Any:
 def executor_operation(
     link_ttl_seconds: int, provider: ProviderFactory = default_provider
 ) -> Any:
-    """Dispatch the action a policy decision already authorised.
+    """Dispatch an action, whether policy or a human authorised it.
 
-    The authorising decision is read through the domain's own accessor: which
-    decision authorises an action is a policy question, and answering it with a
-    query here would put that judgement in the runtime.
+    Two entry paths, which `prepare_dispatch` already distinguishes:
+
+    * ACTION_READY -- policy authorised the action, and the decision that did
+      so is read through the domain's own accessor. Which decision authorises
+      an action is a policy question; answering it with a query here would put
+      that judgement in the runtime.
+    * ESCALATED -- a reviewer approved it, and the PROPOSED action they created
+      already carries its own decision. `_acquire_action` promotes that row and
+      keeps its `policy_decision_id`, so no decision is looked up and none is
+      passed: `None` says "not applicable" where a number would be invented.
 
     `dispatch` owns everything after that -- the attempt row, the idempotency
     key persisted before any network call, the breaker gate, the provider call
@@ -96,15 +108,25 @@ def executor_operation(
     is the domain's recorded outcome, not something to attempt again.
     """
 
-    def operation(conn: psycopg.Connection, case_id: int, *, fencing_token: int) -> Any:
-        decision_id = authorising_decision_id(conn, case_id)
-        if decision_id is None:
-            # A case cannot reach ACTION_READY without one, so this is a data
-            # anomaly. Surfacing it releases the lease and leaves the case for
-            # a human, rather than inventing an authorisation.
-            raise RuntimeError(
-                f"case {case_id} is ACTION_READY with no authorising policy decision"
-            )
+    def operation(
+        conn: psycopg.Connection,
+        case_id: int,
+        *,
+        fencing_token: int,
+        claimed_state: CaseState | None = None,
+        **_: Any,
+    ) -> Any:
+        decision_id: int | None = None
+        if claimed_state is not CaseState.ESCALATED:
+            decision_id = authorising_decision_id(conn, case_id)
+            if decision_id is None:
+                # A case cannot reach ACTION_READY without one, so this is a
+                # data anomaly. Surfacing it releases the lease and leaves the
+                # case for a human, rather than inventing an authorisation.
+                raise RuntimeError(
+                    f"case {case_id} is ACTION_READY with no authorising "
+                    "policy decision"
+                )
         return dispatch(
             conn,
             case_id,

@@ -25,7 +25,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, ContextManager, Protocol
+from typing import Any, Callable, ContextManager, Protocol, Sequence
 
 import psycopg
 
@@ -116,7 +116,7 @@ def run_per_case(
     name: str,
     connect: Connect,
     operation: Callable[..., Any],
-    expected_state: CaseState | str,
+    expected_states: Sequence[CaseState | str],
     worker_id: str,
     lease_seconds: int,
     interval_seconds: int,
@@ -124,6 +124,11 @@ def run_per_case(
     clock: Clock | None = None,
 ) -> list[Tick]:
     """Claim one case, run a domain operation on it, always release the lease.
+
+    A job may accept more than one state: the runner tries each in the order
+    given and takes the first claim it gets. Which states a job accepts, and
+    what the difference means, belong to the job -- the runner only reports
+    which state it claimed, as `claimed_state`, so the operation can act on it.
 
     The fencing token from the claim is handed to the operation unchanged. The
     runner never inspects or re-checks it: a stale token is refused by the
@@ -139,13 +144,20 @@ def run_per_case(
     while should_continue():
         try:
             with connect() as conn:
-                claim = claim_next(conn, expected_state, worker_id, lease_seconds)
+                claim = None
+                for state in expected_states:
+                    claim = claim_next(conn, state, worker_id, lease_seconds)
+                    if claim is not None:
+                        break
                 if claim is None:
                     ticks.append(Tick(job=name, worked=False))
                 else:
                     try:
                         result = operation(
-                            conn, claim.case_id, fencing_token=claim.fencing_token
+                            conn,
+                            claim.case_id,
+                            fencing_token=claim.fencing_token,
+                            claimed_state=claim.state,
                         )
                         ticks.append(Tick(job=name, worked=True, result=result))
                         log.info(

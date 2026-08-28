@@ -102,7 +102,7 @@ def test_each_job_matches_its_declared_contract(
 ) -> None:
     spec = registry.get(name)
     assert spec.kind is JobKind.PER_CASE
-    assert spec.expected_state is state
+    assert spec.expected_states == (state,)
     assert spec.lease_seconds == lease_seconds_for(lease)
     assert spec.interval_seconds == int(load_operational()[interval])
     assert spec.connect is conn_fn
@@ -151,8 +151,8 @@ def test_the_claims_token_reaches_the_domain_unchanged(
 
     run_per_case(
         name=spec.name, connect=connect_to(conn),
-        operation=lambda _c, cid, *, fencing_token: seen.append((cid, fencing_token)),
-        expected_state=spec.expected_state, worker_id=spec.name,
+        operation=lambda _c, cid, *, fencing_token, **_: seen.append((cid, fencing_token)),
+        expected_states=spec.expected_states, worker_id=spec.name,
         lease_seconds=spec.lease_seconds, interval_seconds=spec.interval_seconds,
         should_continue=at_most(1), clock=FakeClock(),
     )
@@ -169,8 +169,8 @@ def test_a_successful_tick_releases_the_lease(
 
     run_per_case(
         name=spec.name, connect=connect_to(conn),
-        operation=lambda _c, _cid, *, fencing_token: None,
-        expected_state=spec.expected_state, worker_id=spec.name,
+        operation=lambda _c, _cid, *, fencing_token, **_: None,
+        expected_states=spec.expected_states, worker_id=spec.name,
         lease_seconds=spec.lease_seconds, interval_seconds=spec.interval_seconds,
         should_continue=at_most(1), clock=FakeClock(),
     )
@@ -188,12 +188,12 @@ def test_a_domain_failure_still_releases_the_lease(
     case_id = seed(conn, state, f"boom_{name}")
     spec = registry.get(name)
 
-    def explode(_c, _cid, *, fencing_token):
+    def explode(_c, _cid, *, fencing_token, **_):
         raise RuntimeError("the domain refused")
 
     ticks = run_per_case(
         name=spec.name, connect=connect_to(conn), operation=explode,
-        expected_state=spec.expected_state, worker_id=spec.name,
+        expected_states=spec.expected_states, worker_id=spec.name,
         lease_seconds=spec.lease_seconds, interval_seconds=spec.interval_seconds,
         should_continue=at_most(1), clock=FakeClock(),
     )
@@ -211,13 +211,13 @@ def test_a_failing_tick_does_not_end_the_polling_loop(
     spec = registry.get(name)
     attempts = {"n": 0}
 
-    def flaky(_c, _cid, *, fencing_token):
+    def flaky(_c, _cid, *, fencing_token, **_):
         attempts["n"] += 1
         raise RuntimeError("transient")
 
     ticks = run_per_case(
         name=spec.name, connect=connect_to(conn), operation=flaky,
-        expected_state=spec.expected_state, worker_id=spec.name,
+        expected_states=spec.expected_states, worker_id=spec.name,
         lease_seconds=spec.lease_seconds, interval_seconds=spec.interval_seconds,
         should_continue=at_most(2), clock=FakeClock(),
     )
@@ -235,8 +235,8 @@ def test_an_idle_tick_is_not_an_error(
 
     ticks = run_per_case(
         name=spec.name, connect=connect_to(conn),
-        operation=lambda _c, cid, *, fencing_token: called.append(cid),
-        expected_state=spec.expected_state, worker_id=spec.name,
+        operation=lambda _c, cid, *, fencing_token, **_: called.append(cid),
+        expected_states=spec.expected_states, worker_id=spec.name,
         lease_seconds=spec.lease_seconds, interval_seconds=spec.interval_seconds,
         should_continue=at_most(1), clock=FakeClock(),
     )
@@ -258,8 +258,8 @@ def test_a_case_held_by_another_worker_is_left_alone(
     called: list[int] = []
     run_per_case(
         name=spec.name, connect=connect_to(conn),
-        operation=lambda _c, cid, *, fencing_token: called.append(cid),
-        expected_state=spec.expected_state, worker_id=spec.name,
+        operation=lambda _c, cid, *, fencing_token, **_: called.append(cid),
+        expected_states=spec.expected_states, worker_id=spec.name,
         lease_seconds=spec.lease_seconds, interval_seconds=spec.interval_seconds,
         should_continue=at_most(1), clock=FakeClock(),
     )
@@ -287,7 +287,7 @@ def test_a_stale_token_cannot_move_the_case(
         CaseState.AWAITING_CUSTOMER: CaseState.AMBIGUOUS,
     }[state]
 
-    def write_stale(c, cid, *, fencing_token):
+    def write_stale(c, cid, *, fencing_token, **_):
         outcomes.append(
             fenced_transition(
                 c, cid, state, target, stale, "probe", worker_id="probe",
@@ -296,7 +296,7 @@ def test_a_stale_token_cannot_move_the_case(
 
     run_per_case(
         name=spec.name, connect=connect_to(conn), operation=write_stale,
-        expected_state=spec.expected_state, worker_id=spec.name,
+        expected_states=spec.expected_states, worker_id=spec.name,
         lease_seconds=spec.lease_seconds, interval_seconds=spec.interval_seconds,
         should_continue=at_most(1), clock=FakeClock(),
     )

@@ -48,8 +48,9 @@ class JobSpec:
     interval_seconds: int
     operation: Callable[..., Any]
     connect: Callable[..., Any]
-    #: per-case only: which state this job claims, and for how long
-    expected_state: CaseState | None = None
+    #: per-case only: the states this job will claim, in priority order, and
+    #: the lease it holds while working one.
+    expected_states: tuple[CaseState, ...] | None = None
     lease_seconds: int | None = None
     #: batch only: how many rows one pass may take
     limit: int | None = None
@@ -58,9 +59,9 @@ class JobSpec:
         if self.interval_seconds <= 0:
             raise ValueError(f"{self.name}: interval_seconds must be positive")
         if self.kind is JobKind.PER_CASE:
-            if self.expected_state is None or self.lease_seconds is None:
+            if not self.expected_states or self.lease_seconds is None:
                 raise ValueError(
-                    f"{self.name}: a per-case job needs expected_state and lease_seconds"
+                    f"{self.name}: a per-case job needs expected_states and lease_seconds"
                 )
         elif self.limit is None:
             raise ValueError(f"{self.name}: a batch job needs a limit")
