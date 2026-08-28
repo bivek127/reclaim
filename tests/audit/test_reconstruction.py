@@ -11,17 +11,32 @@ from reclaim.domain.breaker import (
     EVENT_BREAKER_RESET,
     set_breaker_state,
 )
+from reclaim.domain.diagnosis import diagnose_case
 from reclaim.domain.execution import dispatch
 from reclaim.domain.leases import claim_case
+from reclaim.domain.policy import PolicyFacts, apply_policy
+from reclaim.domain.review import approve_review
 from reclaim.domain.states import CaseState
 from reclaim.domain.sweeper import sweep_expired_leases
+from reclaim.domain.verification import verify_case
+from reclaim.llm.client import ScriptedLlm
 from reclaim.provider.contract import ProviderOutcome
 from tests.audit.audit_helpers import ingest_case, redeliver
 from tests.db.helpers import insert_policy_decision
+from tests.domain.diagnosis_helpers import seed_diagnosing, valid_json
 from tests.domain.execution_helpers import (
     LINK_TTL_SECONDS,
     StubProvider,
     seed_dispatchable,
+)
+from tests.domain.policy_helpers import seed_policy_eval
+from tests.domain.review_helpers import seed_escalated
+from tests.domain.verification_helpers import (
+    CORRELATION_ID,
+    StubVerifyProvider,
+    deliver_webhook,
+    fetch_paid,
+    seed_awaiting_customer,
 )
 
 
@@ -51,12 +66,12 @@ def test_provider_reference_is_recoverable_from_the_trail(
 ) -> None:
     """Which attempts ran under which provider references must be recoverable."""
     ids = _dispatched(conn)
-    key = conn.execute(
-        "SELECT idempotency_key FROM execution_attempts WHERE case_id = %s",
-        (ids["case_id"],),
-    ).fetchone()[0]
+    events = load_case_audit_trail(conn, ids["case_id"])
+    sent = next(e for e in events if e.event_type == "provider_request_sent")
+    key = sent.get("provider_reference")
+    assert key, "the request event must itself carry the reference"
 
-    history = _history(conn, ids["case_id"])
+    history = reconstruct_case_history(events)
 
     assert key in history.provider_references
     assert history.actions[0].attempts[0].provider_reference == key
@@ -153,6 +168,135 @@ def test_complete_lifecycle_reconstructs_with_no_gaps(
     assert history.provider_references
     assert history.provider_correlation_ids
     assert history.final_state == "AWAITING_CUSTOMER"
+
+
+def test_provider_request_and_response_are_on_the_trail(
+    conn: psycopg.Connection,
+) -> None:
+    ids = _dispatched(conn)
+    types = [e.event_type for e in load_case_audit_trail(conn, ids["case_id"])]
+
+    assert "provider_request_sent" in types
+    assert "provider_response_received" in types
+
+
+def test_model_is_recoverable_from_the_trail(conn: psycopg.Connection) -> None:
+    ids = seed_diagnosing(conn)
+    diagnose_case(
+        conn,
+        ids["case_id"],
+        llm=ScriptedLlm(valid_json(), model="gemma-forensic"),
+        fencing_token=0,
+        worker_id="dx-1",
+    )
+
+    history = _history(conn, ids["case_id"])
+
+    assert history.diagnoses, "diagnosis_produced must be on the trail"
+    assert history.diagnoses[0].model == "gemma-forensic"
+    assert history.diagnoses[0].detail.get("source") == "LLM"
+
+
+def test_policy_version_is_recoverable_from_the_trail(
+    conn: psycopg.Connection,
+) -> None:
+    ids = seed_policy_eval(conn, cause="INSUFFICIENT_FUNDS")
+    result = apply_policy(
+        conn,
+        ids["case_id"],
+        facts=PolicyFacts(
+            cause="INSUFFICIENT_FUNDS",
+            attempt_count=0,
+            max_attempts=2,
+            conflicting_history=False,
+        ),
+        diagnosis_id=ids["diagnosis_id"],
+        fencing_token=0,
+        worker_id="policy-1",
+    )
+    assert result.applied is True
+    assert result.decision is not None
+
+    history = _history(conn, ids["case_id"])
+
+    assert history.policy_decisions, "policy_decision must be on the trail"
+    assert history.policy_decisions[0].policy_version == result.decision.policy_version
+    assert history.policy_decisions[0].detail.get("verdict") == "ALLOW"
+
+
+def test_reviewer_decision_is_recoverable_from_the_trail(
+    conn: psycopg.Connection,
+) -> None:
+    ids = seed_escalated(conn)
+    applied = approve_review(
+        conn,
+        ids["case_id"],
+        selected_action="CREATE_PAYMENT_LINK",
+        reviewer_ref="alice@ops",
+        fencing_token=0,
+        worker_id="reviewer-1",
+    )
+    assert applied.applied is True
+
+    history = _history(conn, ids["case_id"])
+
+    assert history.reviews, "review_decision must be on the trail"
+    assert history.reviews[0].reviewer_ref == "alice@ops"
+    assert history.reviews[0].detail.get("status") == "APPROVED"
+    assert history.reviews[0].detail.get("selected_action") == "CREATE_PAYMENT_LINK"
+
+
+def test_verification_is_recoverable_from_the_trail(
+    conn: psycopg.Connection, verifier_conn: psycopg.Connection
+) -> None:
+    ids = seed_awaiting_customer(conn)
+    deliver_webhook(conn, ids)
+    result = verify_case(
+        verifier_conn,
+        ids["case_id"],
+        provider=StubVerifyProvider(fetch_paid()),
+        fencing_token=0,
+        worker_id="verifier-1",
+    )
+    assert result.applied is True
+
+    history = _history(conn, ids["case_id"])
+
+    assert history.verifications, "verification_recorded must be on the trail"
+    assert history.verifications[0].detail.get("agrees") is True
+    assert CORRELATION_ID in history.provider_correlation_ids
+
+
+def test_lease_claim_is_on_the_trail(conn: psycopg.Connection) -> None:
+    _, case_id = ingest_case(conn, suffix="lease")
+    claim = claim_case(conn, case_id, CaseState.NEW, "worker-lease", 30)
+    assert claim is not None
+
+    history = _history(conn, case_id)
+    claimed = [e for e in history.timeline if e.event_type == "lease_claimed"]
+
+    assert claimed, "lease claim must leave an audit row"
+    assert claimed[0].worker_id == "worker-lease"
+    assert claimed[0].fencing_token == claim.fencing_token
+
+
+def test_lease_release_on_expiry_is_on_the_trail(
+    conn: psycopg.Connection,
+) -> None:
+    _, case_id = ingest_case(conn, suffix="sweep")
+    claim = claim_case(conn, case_id, CaseState.NEW, "worker-sweep", 30)
+    assert claim is not None
+    conn.execute(
+        "UPDATE recovery_cases SET lease_expires_at = now() - interval '1 s' WHERE id = %s",
+        (case_id,),
+    )
+    sweep_expired_leases(conn)
+
+    history = _history(conn, case_id)
+    released = [e for e in history.timeline if e.event_type == "lease_released"]
+
+    assert released, "lease expiry must leave a lease_released row"
+    assert released[0].reason_code == "lease_expired"
 
 
 # ---- gaps are reported, never hidden ------------------------------------
