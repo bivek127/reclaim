@@ -2,6 +2,7 @@ import { Identifier } from "../Identifier";
 import { Money } from "../Money";
 import { Disclosure, TechnicalRows } from "../Disclosure";
 import { absolute, relativeFromNow } from "@/lib/time";
+import { isTerminal } from "@/lib/states";
 import type { CaseDetail, ExecutionAttempt, ProviderRequest, RecoveryAction } from "@/lib/types";
 import "./RecoveryProgress.css";
 
@@ -17,6 +18,10 @@ import "./RecoveryProgress.css";
 const ACTION_STATUS_NOTE: Record<string, string> = {
   PROPOSED: "Approved by a reviewer. Waiting for the executor to dispatch it.",
   LIVE: "Open at the provider. The customer can still pay.",
+  // Same stored status, but the forward-looking half of that sentence is only
+  // true while the case can still receive a payment.
+  LIVE_ON_CLOSED_CASE:
+    "Still open at the provider, although this case is already closed.",
   UNRESOLVED: "The provider's outcome is unknown. Nothing may replace it yet.",
   TERMINAL_FAILED: "Closed. The provider did not create a usable mechanism.",
   TERMINAL_SUCCESS: "Closed successfully.",
@@ -120,12 +125,18 @@ function AttemptBlock({
   );
 }
 
+function noteFor(status: string, caseClosed: boolean): string {
+  if (status === "LIVE" && caseClosed) return ACTION_STATUS_NOTE["LIVE_ON_CLOSED_CASE"]!;
+  return ACTION_STATUS_NOTE[status] ?? "Action status not recognised.";
+}
+
 function ActionBlock({
-  action, attempts, requests,
+  action, attempts, requests, caseClosed,
 }: {
   action: RecoveryAction;
   attempts: ExecutionAttempt[];
   requests: ProviderRequest[];
+  caseClosed: boolean;
 }) {
   const mine = attempts.filter((a) => a.action_id === action.id);
   const proposed = action.status === "PROPOSED";
@@ -142,7 +153,7 @@ function ActionBlock({
         </span>
       </div>
       <p className="action__note">
-        {ACTION_STATUS_NOTE[action.status] ?? "Action status not recognised."}
+        {noteFor(action.status, caseClosed)}
       </p>
 
       {mine.length > 0 ? (
@@ -197,6 +208,7 @@ export function RecoveryProgress({ detail }: { detail: CaseDetail }) {
           action={a}
           attempts={detail.attempts}
           requests={detail.provider_requests}
+          caseClosed={isTerminal(detail.case.state)}
         />
       ))}
     </ol>

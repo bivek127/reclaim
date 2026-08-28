@@ -396,3 +396,37 @@ describe("case investigation workspace", () => {
     expect(screen.getByText(/not a failure/)).toBeInTheDocument();
   });
 });
+
+describe("action narration never contradicts the case state", () => {
+  it("does not promise a future payment on a case that is already closed", async () => {
+    // The stored action status is reported as-is; only the forward-looking
+    // half of the sentence is withheld once the case can no longer move.
+    vi.spyOn(api, "case").mockResolvedValue(
+      detail({
+        case: { ...detail().case, state: "VERIFIED_RECOVERED" },
+        actions: [
+          {
+            ...detail().actions[0]!,
+            status: "LIVE",
+          },
+        ],
+      }),
+    );
+    renderCase();
+    expect(await screen.findByText(/Still open at the provider/)).toBeInTheDocument();
+    expect(screen.queryByText(/customer can still pay/)).not.toBeInTheDocument();
+    // The authoritative status itself is not softened or hidden.
+    expect(screen.getAllByText("LIVE").length).toBeGreaterThan(0);
+  });
+
+  it("does promise it while the case is still open", async () => {
+    vi.spyOn(api, "case").mockResolvedValue(
+      detail({
+        case: { ...detail().case, state: "AWAITING_CUSTOMER" },
+        actions: [{ ...detail().actions[0]!, status: "LIVE" }],
+      }),
+    );
+    renderCase();
+    expect(await screen.findByText(/customer can still pay/)).toBeInTheDocument();
+  });
+});
