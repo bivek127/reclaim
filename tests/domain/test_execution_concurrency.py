@@ -296,7 +296,8 @@ def test_concurrent_settlements_count_exactly(
 def test_second_action_blocked_while_first_unresolved(
     conn: psycopg.Connection, migrated_database: str
 ) -> None:
-    """Matrix row 22 under real concurrency."""
+    """Two workers cannot both open an action on the same case, under real
+    concurrency."""
     ids = seed_dispatchable(conn)
     dispatch(
         conn,

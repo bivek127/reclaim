@@ -1,5 +1,6 @@
 -- migrate:up
--- case_id FK deferred until recovery_cases exists (ADR-003).
+-- No case_id foreign key: recovery_cases does not exist yet at this point in
+-- the migration order. The column is populated once a case is resolved.
 CREATE TABLE webhook_events (
   id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   provider_event_id TEXT               NOT NULL,

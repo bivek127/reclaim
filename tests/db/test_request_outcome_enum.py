@@ -1,4 +1,4 @@
-"""Constraint tests for the request_outcome enum (migration 019, ADR-014)."""
+"""Constraint tests for the request_outcome enum (migration 019)."""
 
 from __future__ import annotations
 

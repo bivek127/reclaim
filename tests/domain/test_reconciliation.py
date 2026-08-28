@@ -124,7 +124,7 @@ def test_adoption_marks_attempt_accepted_and_action_live(
 def test_every_link_status_adopts_none_is_terminal(
     conn: psycopg.Connection, status: LinkStatus
 ) -> None:
-    """No provider-side status is terminal-failure evidence (ADR-006)."""
+    """No provider-side status is terminal-failure evidence."""
     ids = seed_dispatchable(conn, suffix=f"ls{status.value}")
     _, token = _to_ambiguous_lost_response(conn, ids)
 

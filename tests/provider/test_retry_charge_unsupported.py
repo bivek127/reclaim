@@ -1,4 +1,4 @@
-"""RETRY_CHARGE has no safe provider implementation (ADR-005)."""
+"""RETRY_CHARGE has no safe provider implementation."""
 
 from __future__ import annotations
 
@@ -30,13 +30,20 @@ def test_retry_charge_makes_no_network_call(make_adapter) -> None:
     assert transport.calls == []
 
 
-def test_the_raise_cites_the_open_verification(make_adapter) -> None:
+def test_the_raise_explains_why_it_is_unsupported(make_adapter) -> None:
+    """The refusal has to carry its reason, not just its type.
+
+    A bare exception tells a caller nothing about whether the operation is
+    unsupported today or unsupported in principle.
+    """
     adapter, _ = make_adapter()
 
     with pytest.raises(RetryChargeUnsupported) as excinfo:
         adapter.retry_charge()
 
-    assert "19.1a" in str(excinfo.value)
+    message = str(excinfo.value)
+    assert "no merchant-facing" in message
+    assert "idempotency key" in message
 
 
 def test_adapter_exposes_no_other_money_moving_operation(make_adapter) -> None:

@@ -9,8 +9,9 @@ other name and still be untraceable to an auditor grepping the specification
 -- which is exactly the gap this closes, and exactly the kind of thing a
 forensic contract should not tolerate.
 
-The specification is the input, never the output: this reads SPECIFICATION.md
-and never edits it.
+The specification is the input, never the output: this reads it and never edits
+it. The specification is not distributed with the repository, so when it is
+absent this module skips rather than failing collection.
 """
 
 from __future__ import annotations
@@ -24,6 +25,16 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / "SPECIFICATION.md"
 TESTS = ROOT / "tests"
+
+# The specification is not distributed with the repository. Parsing it happens
+# at import, so without this guard a checkout that lacks the file fails during
+# collection -- taking the whole suite down, not just this module.
+if not SPEC.exists():
+    pytest.skip(
+        "the specification document is not present in this checkout, so the "
+        "coverage cross-check has no input to read",
+        allow_module_level=True,
+    )
 
 _TEST_NAME = re.compile(r"`(test_[a-z0-9_]+)`")
 
@@ -62,8 +73,12 @@ DEFINED = _defined_tests()
 def test_specification_actually_names_tests() -> None:
     """Guard the guard: if the parse silently found nothing, everything below
     would pass vacuously."""
-    assert len(MATRIX_TESTS) >= 25, f"§16 parse found only {len(MATRIX_TESTS)}"
-    assert len(INVARIANT_TESTS) >= 15, f"§17 parse found only {len(INVARIANT_TESTS)}"
+    assert len(MATRIX_TESTS) >= 25, (
+        f"the failure-matrix parse found only {len(MATRIX_TESTS)} named tests"
+    )
+    assert len(INVARIANT_TESTS) >= 15, (
+        f"the invariant-table parse found only {len(INVARIANT_TESTS)} named tests"
+    )
     assert len(DEFINED) > 100, f"only {len(DEFINED)} tests discovered"
 
 

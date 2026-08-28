@@ -1,27 +1,27 @@
 -- migrate:up
 --
 -- Extends request_outcome so provider_requests can record what actually
--- happened, for both execution (Task 6) and reconciliation reads (Task 7).
+-- happened, for both execution and reconciliation reads.
 --
 -- Every value below is produced by real adapter code today. Nothing here is
 -- speculative or reserved for a later task:
 --
 --   Execution (ProviderOutcome, reclaim/provider/contract.py) -- these five
---   were collapsed onto 'TIMEOUT' by Task 6 under ADR-010 because the enum
---   had no member for them. That collapse is removed in this change.
+--   were previously collapsed onto 'TIMEOUT' because the enum had no member
+--   for them, which lost the real cause. That collapse is removed here.
 --     PROVIDER_ERROR  HTTP 5xx
 --     RATE_LIMITED    HTTP 429  (observed live against Razorpay test mode)
 --     UNPARSEABLE     HTTP 2xx with a body that fails validation
 --     AUTH_ERROR      HTTP 401/403
 --     UNKNOWN         unrecognised status, or inconclusive corroboration
 --
---   Reconciliation reads (FetchOutcome, §8.3) -- Task 7's provider GET.
+--   Reconciliation reads (FetchOutcome) -- the provider GET.
 --     FOUND           the mechanism exists under our reference
 --     NOT_FOUND       the provider positively reports no such mechanism
---     NO_EVIDENCE     the query failed; NOT proof of absence (§8.3)
+--     NO_EVIDENCE     the query failed; NOT proof of absence
 --
--- SPECIFICATION.md §2.6 lists only the original six values and is NOT edited
--- by this migration. That divergence is deliberate and recorded in ADR-014.
+-- Adding enum members is additive: existing rows and code paths keep their
+-- meaning, and no value is ever removed or renamed.
 --
 ALTER TYPE request_outcome ADD VALUE IF NOT EXISTS 'PROVIDER_ERROR';
 ALTER TYPE request_outcome ADD VALUE IF NOT EXISTS 'RATE_LIMITED';

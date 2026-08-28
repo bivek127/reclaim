@@ -21,7 +21,8 @@ Three structural boundaries, in order of how much they matter:
    iteration order, sampling order, or how many draws preceded them.
 
 Out of scope: dashboard styling. This module computes arm rates and a lift
-point estimate; it does not compute an interval (see ADR-016).
+point estimate; it does not compute an interval, because no method for one
+is specified.
 """
 
 from __future__ import annotations
@@ -98,7 +99,7 @@ class SimOutcome:
 
 @dataclass(frozen=True)
 class SimMetrics:
-    """Arm rates and lift point estimate. No interval -- see ADR-016."""
+    """Arm rates and lift point estimate. No interval is computed."""
 
     control_n: int
     treatment_n: int
@@ -108,7 +109,7 @@ class SimMetrics:
     treatment_rate: float
     lift: float
     excluded_from_lift: int
-    # §15 reports the unresolved bucket as a count *and* a sum, kept apart from
+    # The unresolved bucket is reported as a count *and* a sum, kept apart from
     # both arms: an expired case is neither a win nor a confirmed loss, and
     # folding its money into either rate would misstate the result.
     unresolved_amount_minor: int
@@ -225,7 +226,7 @@ def extract_features(case: CaseRecord, config: SimulatorConfig) -> dict[str, Any
     Recorded, **not weighted**. No defensible empirical weight exists for any of
     them, so assigning coefficients would fabricate a finding. They are written
     to `sim_outcomes.pre_decision_features` as an audit record and have no
-    influence on probability (ADR-016).
+    influence on probability.
     """
     hour = case.first_seen_at.astimezone(_zone(config.feature_timezone)).hour
     return {
@@ -263,7 +264,7 @@ def probability_for(arm: str, config: SimulatorConfig) -> float:
 
     The permitted *inputs* are fixed, but the arithmetic that turns a baseline
     and a per-action parameter into a probability is nowhere defined, so it is
-    a named configuration choice rather than a silent assumption. See ADR-016.
+    a named configuration choice rather than a silent assumption.
     """
     baseline = config.organic_baseline_rate
     if arm == ARM_CONTROL:

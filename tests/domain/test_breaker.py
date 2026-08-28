@@ -1,4 +1,4 @@
-"""Circuit-breaker gate and counting (ADR-011)."""
+"""Circuit-breaker gate and failure counting."""
 
 from __future__ import annotations
 
@@ -110,11 +110,11 @@ def test_failures_accumulate(conn: psycopg.Connection) -> None:
         assert record_execution_outcome(conn, ProviderOutcome.PROVIDER_ERROR) == expected
 
 
-# ---- the boundary that ADR-011 pins --------------------------------------
+# ---- the executor reads the breaker but never writes its state -----------
 
 
 def test_executor_never_opens_the_breaker(conn: psycopg.Connection) -> None:
-    """Breaker state belongs to the monitor job, not the executor (ADR-011)."""
+    """Breaker state belongs to the monitor job, not the executor."""
     for _ in range(10):  # well past the threshold of 5
         record_execution_outcome(conn, ProviderOutcome.TIMEOUT)
 

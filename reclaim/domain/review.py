@@ -61,7 +61,7 @@ def on_entered_escalated(
     reason_code: str,
     policy_decision_id: int | None = None,
 ) -> tuple[int, int]:
-    """Escalation entry (ADR-015 decision C). Call from side_effects after
+    """Escalation entry. Call from side_effects after
     a transition into ESCALATED.
 
     If ``policy_decision_id`` is provided, reuse it (the routing decision that

@@ -138,11 +138,10 @@ class RazorpayAdapter:
         return _classify_fetch(response, reference_id=reference_id, record=record)
 
     def retry_charge(self, **kwargs: Any) -> NoReturn:
-        """Razorpay exposes no retry-charge operation with a binding key (ADR-005)."""
+        """Razorpay exposes no retry-charge operation with a binding key."""
         raise RetryChargeUnsupported(
             "RETRY_CHARGE is not implementable: Razorpay exposes no merchant-facing "
-            "charge-retry endpoint accepting a caller-supplied idempotency key "
-            "(§19.1a, ADR-005)"
+            "charge-retry endpoint accepting a caller-supplied idempotency key"
         )
 
     def verify_webhook_signature(self, raw_body: bytes, signature: str) -> bool:
@@ -243,7 +242,7 @@ class RazorpayAdapter:
     ) -> CreateLinkResult:
         """Razorpay's duplicate error is a generic BAD_REQUEST_ERROR whose
         description text is not stable across sources, so the duplicate is resolved
-        by read-only evidence rather than by matching a guessed string (ADR-007).
+        by read-only evidence rather than by matching a guessed string.
         """
         corroboration = self.fetch_by_reference(reference_id=reference_id)
 

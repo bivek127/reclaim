@@ -399,7 +399,7 @@ def test_not_found_is_a_disagreement_not_no_evidence(
     assert case_row(conn, ids["case_id"])["revenue"] == 0
 
 
-# ---- provider-side death is not terminal (ADR-006) -----------------------
+# ---- provider-side death is not terminal ---------------------------------
 
 
 @pytest.mark.parametrize("status", list(LinkStatus))

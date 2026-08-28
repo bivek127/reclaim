@@ -45,7 +45,7 @@ class StubVerifyProvider:
         raise AssertionError("verification must never create a financial mechanism")
 
     def retry_charge(self, **kwargs: Any) -> NoReturn:
-        raise RetryChargeUnsupported("§19.1a")
+        raise RetryChargeUnsupported("no safe charge-retry endpoint exists")
 
     def verify_webhook_signature(self, raw_body: bytes, signature: str) -> bool:
         return False

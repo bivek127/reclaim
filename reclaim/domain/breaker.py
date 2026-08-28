@@ -7,7 +7,7 @@ Opening and resetting the breaker belong to a separate monitor job, not the
 Executor. The executor's own breaker interaction is limited to reading the
 gate before dispatch and aborting to HALTED when it is OPEN. The executor
 still owns the failure counter because it is the only component that
-observes an execution outcome. See ADR-011.
+observes an execution outcome.
 """
 
 from __future__ import annotations
@@ -86,8 +86,8 @@ def read_breaker(conn: psycopg.Connection, *, for_update: bool = False) -> Break
 def record_execution_outcome(
     conn: psycopg.Connection, outcome: ProviderOutcome
 ) -> int:
-    """Count or clear consecutive failures. Never writes `state` (see ADR-011:
-    opening and resetting the breaker belong to a separate monitor job).
+    """Count or clear consecutive failures. Never writes `state`: opening and
+    resetting the breaker belong to a separate monitor job.
 
     Returns the resulting counter value.
     """
@@ -131,9 +131,9 @@ def set_breaker_state(
     without evidence, because both statements are in one transaction and the
     caller cannot reach the UPDATE without going through this function.
 
-    ADR-011 assigns breaker *state* changes to a monitor job that is not yet
-    built; no other production code calls this today, so the executor counts
-    failures and reads the gate but never opens it. This function exists so
+    Breaker *state* changes belong to a monitor job that is not yet built; no
+    other production code calls this today, so the executor counts failures
+    and reads the gate but never opens it. This function exists so
     that whoever builds the monitor cannot open the breaker unaudited.
 
     Returns False when the requested state is already in effect (no-op, no

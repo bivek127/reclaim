@@ -1,12 +1,11 @@
 -- migrate:up
 --
--- §15: "A `sim_runs.seed` makes every reported number reproducible."
+-- A run's seed is meant to make every reported number reproducible.
 --
 -- That held for outcome rows but not for reported metrics. compute_metrics()
--- decided EXPIRED_UNRESOLVED exclusion (§15, §21 clause 9) from the LIVE
--- recovery_cases.state, while sim_outcomes persisted no state. A real case
--- whose story continued after the run therefore silently rewrote the run's
--- reported numbers:
+-- decided EXPIRED_UNRESOLVED exclusion from the LIVE recovery_cases.state,
+-- while sim_outcomes persisted no state. A real case whose story continued
+-- after the run therefore silently rewrote the run's reported numbers:
 --
 --     same seed + same sim_outcomes + case state changes
 --       -> identical outcome fingerprint
@@ -23,8 +22,6 @@
 -- NOT NULL is safe without a backfill: no persisted simulation data exists
 -- anywhere (no reclaim_dev database; reclaim_test is truncated per test).
 --
--- SPECIFICATION.md §2.8 does not list this column and is deliberately NOT
--- edited. The divergence is recorded in ADR-016.
 --
 ALTER TABLE sim_outcomes
   ADD COLUMN case_state_at_run case_state NOT NULL;

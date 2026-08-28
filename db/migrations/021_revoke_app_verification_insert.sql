@@ -1,19 +1,20 @@
 -- migrate:up
 --
--- §2.9 grants INSERT on verifications to recovery_verifier and to no one else.
+-- INSERT on verifications is meant for recovery_verifier and no one else.
 -- Migration 018 nevertheless granted it to recovery_app via
 --
 --   GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public
 --     TO recovery_app;
 --
--- and never revoked it. That leaves barrier 2 of §2.9's "three independent
--- barriers" forgeable from inside the application role: recovery_app could
--- insert an agreeing verifications row which guard_recovered_amount would then
--- accept as support for a revenue write.
+-- and never revoked it. Revenue is protected by three independent barriers:
+-- the column privilege, the verification row itself, and the guard trigger.
+-- That grant left the second one forgeable from inside the application role:
+-- recovery_app could insert an agreeing verifications row which
+-- guard_recovered_amount would then accept as support for a revenue write.
 --
--- I8 was never breached -- the column privilege (barrier 1) refuses
--- recovery_app the revenue write regardless, and that is re-asserted by test
--- after this migration applies. This restores the independence of barrier 2.
+-- Revenue was never actually writable by recovery_app -- the column privilege
+-- refuses it regardless, and that is re-asserted by test after this migration
+-- applies. This restores the independence of the second barrier.
 --
 -- Verified before writing: no production flow needs it. The only
 -- INSERT INTO verifications in reclaim/ is verification.py, which runs on a

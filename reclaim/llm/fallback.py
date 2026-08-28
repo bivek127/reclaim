@@ -22,7 +22,12 @@ FAILURE_CODE_TO_CAUSE: dict[str, str] = {
     "PAYMENT_RISK_BLOCKED": "RISK_BLOCKED",
 }
 
-FALLBACK_REASONING = "deterministic fallback from provider failure-code map (§10.3)"
+# Persisted on every fallback diagnosis and shown to operators, so it has to
+# explain itself without reference to any document.
+FALLBACK_REASONING = (
+    "Cause mapped from the provider's failure code by a fixed lookup table, "
+    "without the model."
+)
 
 
 def fallback_cause(failure_codes: tuple[str, ...]) -> str:

@@ -1,4 +1,4 @@
-"""Failure-matrix rows 1 and 2: obligation/case ingest lifecycle."""
+"""Obligation and case ingest lifecycle, including duplicate delivery."""
 
 from __future__ import annotations
 

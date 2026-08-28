@@ -73,7 +73,7 @@ class LinkStatus(str, Enum):
     """Normalized payment-mechanism status.
 
     EXPIRED carries no "terminal failure" flag. Whether an expired mechanism is
-    financially dead is unverified (ADR-006), so this boundary offers nothing a
+    financially dead is unverified, so this boundary offers nothing a
     caller could mistake for that evidence.
     """
 

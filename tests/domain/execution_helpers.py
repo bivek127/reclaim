@@ -82,7 +82,10 @@ class StubProvider:
         )
 
     def fetch_by_reference(self, *, reference_id: str) -> NoReturn:
-        raise AssertionError("Task 6 must never call fetch_by_reference (that is Task 7)")
+        raise AssertionError(
+            "the executor must never call fetch_by_reference; that belongs to "
+            "reconciliation"
+        )
 
 
 class StubReconcileProvider:
@@ -123,7 +126,7 @@ class StubReconcileProvider:
         return self._create.create_payment_link(**kwargs)
 
     def retry_charge(self, **kwargs: Any) -> NoReturn:
-        raise RetryChargeUnsupported("§19.1a")
+        raise RetryChargeUnsupported("no safe charge-retry endpoint exists")
 
     def verify_webhook_signature(self, raw_body: bytes, signature: str) -> bool:
         return False

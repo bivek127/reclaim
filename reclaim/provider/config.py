@@ -56,7 +56,7 @@ class ProviderConfig:
             if value > ceiling:
                 raise ProviderConfigError(
                     f"{name}={value} exceeds provider_http_timeout_seconds={ceiling}; "
-                    "the §4.1 execution-lease relation would no longer hold"
+                    "a call could then outlive the execution lease that protects it"
                 )
 
         if self.payment_link_ttl_seconds < MIN_LINK_TTL_SECONDS:

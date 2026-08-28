@@ -10,7 +10,7 @@ key before any byte reaches the provider (I2), and every row write rides inside
 
 Out of scope: reconciliation, adoption after the fact, verification, revenue,
 policy, diagnosis, human review. Breaker *state* changes belong to a separate
-monitor job -- see `breaker.py` and ADR-011.
+monitor job -- see `breaker.py`.
 """
 
 from __future__ import annotations
@@ -40,8 +40,8 @@ KEY_PREFIX = "rcv_"
 KEY_BODY_LENGTH = 26
 
 # action_deadline_at = expire_by + 10 minutes, satisfying
-# ck_deadline_after_provider. Bookkeeping only -- per ADR-006 nothing may read
-# the deadline's passing as terminal-failure evidence.
+# ck_deadline_after_provider. Bookkeeping only: a deadline that has passed is
+# never evidence the customer failed to pay, so nothing may read it that way.
 ACTION_DEADLINE_GRACE = timedelta(minutes=10)
 
 CREATE_PAYMENT_LINK = "CREATE_PAYMENT_LINK"
@@ -55,7 +55,7 @@ OPEN_ACTION_STATUSES = ("PROPOSED", "LIVE", "UNRESOLVED")
 # Outcome mapping (TXN 2)
 # ---------------------------------------------------------------------------
 
-# One enum member per real provider outcome (ADR-014). The exact ProviderOutcome
+# One enum member per real provider outcome. The exact ProviderOutcome
 # is still mirrored into response_body/audit detail for callers that want it
 # without a column lookup.
 _REQUEST_OUTCOME = {
@@ -195,7 +195,7 @@ def prepare_dispatch(
 ) -> Prepared:
     """TXN 1: commits before any network call. No provider access here.
 
-    Entry states (ADR-015 decision A):
+    Entry states:
       ACTION_READY — automated path
       ESCALATED — only when an open PROPOSED action exists; never merely because
                   the case is ESCALATED.
@@ -246,7 +246,7 @@ def prepare_dispatch(
                 if proposed_type == ACTION_RETRY_CHARGE:
                     raise RetryChargeUnsupported(
                         f"case {case_id} holds a PROPOSED {proposed_type} action; "
-                        "RETRY_CHARGE is not dispatchable (ADR-005)"
+                        "RETRY_CHARGE is not dispatchable: no safe provider implementation exists"
                     )
                 raise ActionTypeUnsupported(case_id, proposed_type)
 
@@ -257,8 +257,8 @@ def prepare_dispatch(
         #    discards the HALTED transition itself, making the halt and the
         #    unspent budget mutually exclusive.
         #
-        #    ADR-015 decision B: ESCALATED + OPEN → abort with no state change
-        #    (no HALTED). ACTION_READY + OPEN → HALTED as before.
+        #    ESCALATED + OPEN aborts with no state change (no HALTED), so an
+        #    approved case keeps its review; ACTION_READY + OPEN halts.
         breaker = breaker_mod.read_breaker(conn, for_update=True)
         if breaker.is_open:
             if from_state is CaseState.ACTION_READY:
@@ -412,7 +412,7 @@ def _obligation_money(conn: psycopg.Connection, case_id: int) -> dict[str, Any]:
 def _acquire_action(
     conn: psycopg.Connection, *, case_id: int, policy_decision_id: int, expire_by: int
 ) -> int:
-    """Promote an open PROPOSED action, else create a LIVE one (ADR-011).
+    """Promote an open PROPOSED action, else create a LIVE one.
 
     Human review creates a PROPOSED action ahead of dispatch; a bare INSERT
     here would collide with that row under uq_case_one_open_action.
@@ -485,7 +485,7 @@ def _insert_attempt(
             case_id,
             attempt_no,
             key,
-            key,  # SPEC-2 / ADR-003: provider_reference IS the key.
+            key,  # provider_reference IS the idempotency key, deliberately.
             money["amount_minor"],
             money["currency"],
         ),
@@ -566,7 +566,7 @@ def settle_dispatch(
 
     `expected_state` is EXECUTING for a normal dispatch. A bounded same-key
     re-POST during reconciliation settles from RECONCILING instead, reusing
-    this mapping rather than duplicating it (ADR-013).
+    this mapping rather than duplicating it.
     """
     outcome = result.outcome
     target = case_target_for(outcome)

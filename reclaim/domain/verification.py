@@ -233,7 +233,7 @@ def compare(
 
     if fetch.link_status not in PROVIDER_PAID_STATUSES:
         # EXPIRED/CANCELLED: provider-side death is NOT terminal evidence of
-        # non-payment (ADR-006). It merely disagrees with a successful verdict.
+        # non-payment. It merely disagrees with a successful verdict.
         return False, "verification_provider_not_paid"
 
     if fetch.amount_paid_minor is None:

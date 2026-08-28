@@ -2,9 +2,10 @@
 
 The other simulator suites run three cases per arm, which is enough to prove a
 mechanism but not enough to catch a defect whose effect is statistical: with
-three draws an ordering bug can reproduce by luck. §15 fixes the experiment at
-n = 50 per arm, so reproducibility and I11 are pinned here at that size, over a
-corpus larger than n so that selection itself has work to do.
+three draws an ordering bug can reproduce by luck. The experiment size is fixed
+at 50 per arm, so reproducibility and independence from agent-generated values
+are pinned here at that size, over a corpus larger than n so that selection
+itself has work to do.
 """
 
 from __future__ import annotations
@@ -189,7 +190,7 @@ def test_simulation_at_scale_leaves_the_recovery_estate_untouched(
 def test_unresolved_bucket_reports_its_own_count_and_amount(
     conn: psycopg.Connection,
 ) -> None:
-    """§15 keeps unresolved cases in their own bucket, as a count and a sum.
+    """Unresolved cases belong in their own bucket, as a count and a sum.
 
     Each case is drawn into both arms carrying the same obligation amount, so a
     sum taken over outcome rows rather than over cases would report exactly

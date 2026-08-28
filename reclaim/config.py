@@ -121,7 +121,8 @@ def _validate_causes(causes: dict[str, str]) -> dict[str, str]:
     for cause, action in causes.items():
         if action in _FORBIDDEN_TABLE_ACTIONS:
             raise PolicyConfigError(
-                f"cause {cause!r} maps to forbidden action {action!r} (§19.1a)"
+                f"cause {cause!r} maps to forbidden action {action!r}; the executor "
+                    "has no safe implementation for it"
             )
     return dict(causes)
 
@@ -220,8 +221,8 @@ def _sim_required(values: dict[str, str], key: str) -> str:
     raw = values.get(key, "")
     if raw.strip().lower() in _UNSET:
         raise SimulatorConfigError(
-            f"{key} is unset in config/simulator.yaml. §15 requires externally "
-            "sourced, cited values; a run must not proceed on an invented number."
+            f"{key} is unset in config/simulator.yaml. Rates must be externally "
+            "sourced and cited; a run must not proceed on an invented number."
         )
     return raw
 

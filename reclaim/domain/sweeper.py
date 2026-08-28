@@ -205,7 +205,8 @@ def expire_ttl(
                         on_entered_escalated,
                     )
 
-                    # Escalation provenance + PENDING review (ADR-015 decision C).
+                    # Records why the case escalated and opens the single
+                    # PENDING review a human will decide on.
                     on_entered_escalated(
                         inner,
                         cid,
@@ -247,7 +248,7 @@ def expire_action_deadlines(
     ordering, because our internal notion of "this action is dead" must never
     arrive before the provider's. Sweeping on the provider's own expiry would
     collapse that grace window and could escalate a customer who paid in the
-    final seconds. See ADR-017.
+    final seconds.
 
     What this deliberately does NOT do: it never marks the action
     TERMINAL_FAILED, never creates a second action, never claims budget, and

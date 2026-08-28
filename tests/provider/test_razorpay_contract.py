@@ -122,7 +122,7 @@ def _await_found(adapter: RazorpayAdapter, *, reference_id: str, timeout_seconds
     is eventual consistency on the fetch/search endpoint specifically, not on
     creation itself. It is not documented and the exact bound is unverified;
     8s is a generous multiple of the observed window, not a Razorpay-stated
-    guarantee. See ADR-007's "Live provider evidence" addendum.
+    guarantee; it was measured against the live test API.
     """
     deadline = time.monotonic() + timeout_seconds
     result = adapter.fetch_by_reference(reference_id=reference_id)
@@ -176,7 +176,11 @@ def test_fetch_of_an_unused_reference_is_not_found(
 def test_duplicate_reference_is_classified_as_duplicate(
     adapter: RazorpayAdapter, created_link: dict[str, Any], findings: dict[str, Any]
 ) -> None:
-    """Records the exact duplicate signature verbatim so ADR-007 can cite it."""
+    """Records the exact duplicate-reference signature verbatim, as evidence.
+
+    The adapter deliberately does not classify on this text -- an undocumented
+    message is not a contract -- so this only captures what the API returned.
+    """
     result = adapter.create_payment_link(
         reference_id=created_link["reference"],
         amount_minor=10_000,
@@ -242,8 +246,9 @@ def test_expiry_finality_observation(
 
     Proving that an expired link can never produce a payment requires a human
     attempting payment through the checkout page after expiry, which no
-    automated test can do. This records what is observable and nothing more —
-    ADR-006 keeps expiry finality UNVERIFIED regardless of the outcome here.
+    automated test can do. This records what is observable and nothing more:
+    whether expiry is financially final stays unverified regardless of the
+    outcome here.
     """
     if not os.environ.get("RECLAIM_PROVIDER_SLOW"):
         pytest.skip("needs a >=15 minute wait; set RECLAIM_PROVIDER_SLOW=1 to run")
@@ -282,7 +287,7 @@ def test_expiry_finality_observation(
 def test_subscription_cycle_identifier_is_unverified(findings: dict[str, Any]) -> None:
     """Requires a test subscription driven through two consecutive failed
     cycles, plus a redelivery of one cycle's event. That cannot be provoked from
-    an API-only contract test, so the safe default in ADR-004 stands (ADR-009).
+    an API-only contract test, so the existing safe default stands.
     """
     findings["subscription_cycle_ref"] = {
         "observed": False,
@@ -290,4 +295,4 @@ def test_subscription_cycle_identifier_is_unverified(findings: dict[str, Any]) -
         "safe_default": "current_start",
         "blocker": "needs two consecutive failed cycles on a live test subscription",
     }
-    pytest.skip("§19.1c needs a test subscription with two consecutive failed cycles")
+    pytest.skip("needs a test subscription with two consecutive failed cycles")

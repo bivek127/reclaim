@@ -4,14 +4,15 @@ max_attempts: 2
 ttl_budget_ms: 259200000  # 72h
 review_ttl_ms: 86400000   # 24h
 
-# Circuit breaker (19.2 defaults). The executor reads these; only the
-# 14 breaker-monitor job acts on them (ADR-011).
+# Circuit breaker defaults. The executor reads the gate and counts failures;
+# only the breaker-monitor job changes the breaker's state.
 breaker_failure_threshold: 5
 breaker_reset_seconds: 120
 
-# §10.2 cause → action table (policy_version 1.0).
+# Cause → action table (policy_version 1.0).
 # ESCALATE and NO_ACTION are policy outcomes, not executable action types.
-# RETRY_CHARGE is forbidden while §19.1a remains unresolved.
+# RETRY_CHARGE is forbidden: the provider exposes no merchant-facing
+# charge-retry endpoint, so the executor could not dispatch it safely.
 causes:
   INSUFFICIENT_FUNDS: CREATE_PAYMENT_LINK
   EXPIRED_CARD: CREATE_PAYMENT_LINK

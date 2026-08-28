@@ -90,7 +90,7 @@ def test_action_deadline_is_after_provider_expiry(conn: psycopg.Connection) -> N
     assert action["action_deadline_at"] > action["provider_expires_at"]
 
 
-# ---- matrix row 5: timeout -> AMBIGUOUS ----------------------------------
+# ---- a provider timeout becomes AMBIGUOUS --------------------------------
 
 
 def test_provider_timeout_becomes_ambiguous(conn: psycopg.Connection) -> None:
@@ -134,7 +134,7 @@ def test_auth_error_is_ambiguous_not_attempt_failed(conn: psycopg.Connection) ->
     assert case_row(conn, ids["case_id"])["state"] == "AMBIGUOUS"
 
 
-# ---- matrix row 16: DB failure before the provider call ------------------
+# ---- a database failure before the provider call -------------------------
 
 
 def test_db_failure_before_provider_call_leaves_no_attempt(
@@ -268,7 +268,7 @@ def test_rejected_becomes_attempt_failed(conn: psycopg.Connection) -> None:
 
 def test_transport_error_becomes_attempt_failed(conn: psycopg.Connection) -> None:
     """Zero bytes written proves nothing was created, so it resolves as a
-    failure rather than ambiguity (ADR-011)."""
+    failure rather than ambiguity."""
     ids = seed_dispatchable(conn)
 
     _dispatch(conn, ids, StubProvider(ProviderOutcome.TRANSPORT_ERROR, http_status=None))
@@ -301,7 +301,7 @@ def test_key_persisted_before_dispatch(conn: psycopg.Connection) -> None:
 
 
 def test_provider_reference_equals_idempotency_key(conn: psycopg.Connection) -> None:
-    """SPEC-2 / ADR-003: one string, no mapping layer."""
+    """The idempotency key and the provider reference are one string, not two."""
     ids = seed_dispatchable(conn)
     provider = StubProvider()
 
@@ -343,7 +343,7 @@ def test_keys_are_unique_across_dispatches(conn: psycopg.Connection) -> None:
 
 
 def test_prior_action_success_after_second_proposed(conn: psycopg.Connection) -> None:
-    """Matrix row 22's shape: the DB refuses, before any network call."""
+    """The database refuses the second open action, before any network call."""
     ids = seed_dispatchable(conn)
     _dispatch(conn, ids, StubProvider(ProviderOutcome.TIMEOUT))  # -> UNRESOLVED
     conn.execute(
@@ -400,7 +400,7 @@ def test_duplicate_idempotency_key_rejected(conn: psycopg.Connection) -> None:
         insert_attempt(conn, action_id, other["case_id"], idempotency_key=key)
 
 
-# ---- promote-or-create (ADR-011) -----------------------------------------
+# ---- promote-or-create ---------------------------------------------------
 
 
 def test_existing_proposed_action_is_promoted_not_duplicated(
@@ -430,7 +430,7 @@ def test_no_existing_action_creates_one(conn: psycopg.Connection) -> None:
     assert actions[0]["sequence_no"] == 1
 
 
-# ---- outcome mapping / ADR-010 collapse ----------------------------------
+# ---- outcome mapping is total over provider outcomes ---------------------
 
 
 def test_mapping_is_total_over_provider_outcomes() -> None:
@@ -445,9 +445,9 @@ def test_mapping_is_total_over_provider_outcomes() -> None:
 def test_every_outcome_records_its_own_enum_value(
     conn: psycopg.Connection, outcome
 ) -> None:
-    """Migration 019 / ADR-014: no outcome is collapsed onto another any more.
+    """Migration 019: no outcome is collapsed onto another any more.
 
-    Replaces the earlier test that pinned ADR-010's temporary collapse onto
+    Replaces the earlier test that pinned the temporary collapse onto
     TIMEOUT. This is the stronger property: a 401 is recorded as AUTH_ERROR,
     not disguised as a timeout.
     """

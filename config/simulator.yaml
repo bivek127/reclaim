@@ -1,12 +1,12 @@
-# Experiment configuration (§20). Flat keys only, matching the parser used by
+# Experiment configuration. Flat keys only, matching the parser used by
 # policy.yaml and operational.yaml -- this repo has no YAML dependency.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # RESEARCH VALUES ARE DELIBERATELY UNSET.
 #
-# §15 requires the per-action rates and the organic baseline to be "externally
-# sourced, cited". Those values do not exist in this repository and must not be
-# invented: a plausible-looking default would make every downstream number look
+# The per-action rates and the organic baseline must be externally sourced and
+# cited. Those values do not exist in this repository and must not be invented:
+# a plausible-looking default would make every downstream number look
 # evidence-based while being fabricated.
 #
 # `null` here is not a placeholder to be quietly filled with a guess. Loading
@@ -18,39 +18,39 @@ seed: 20260826
 n_per_arm: 50
 
 # Which combination function turns the baseline and the per-action parameter
-# into a probability. §15 constrains the permitted *inputs* but never states the
-# arithmetic, so the choice is configuration rather than a hidden assumption.
+# into a probability. The permitted *inputs* are fixed, but the arithmetic that
+# combines them is not, so the choice is configuration rather than a hidden
+# assumption.
 #
 #   baseline_plus_uplift  control = baseline
 #                         treatment = clamp(baseline + uplift[action], 0, 1)
 #                         -- use when sources report percentage-point uplifts.
-#                         Applies the baseline to both arms, matching §15's
-#                         "shared organic-recovery baseline, applied identically
-#                         to both arms".
+#                         Applies the baseline to both arms, which is what a
+#                         shared organic-recovery baseline requires.
 #
 #   direct_rates          control = baseline
 #                         treatment = rate[action]
 #                         -- use when sources report absolute per-channel rates.
 #                         Note: the baseline then determines the control arm
-#                         only, which sits less comfortably with §15's "applied
-#                         identically to both arms". See ADR-016.
+#                         only, which sits less comfortably with applying the
+#                         baseline identically to both arms.
 model: baseline_plus_uplift
 
-# Organic recovery baseline, shared by both arms (§15 item 4).
+# Organic recovery baseline, shared by both arms.
 organic_baseline_rate: null
 organic_baseline_source: null
 
-# Per-action-type parameter (§15 item 3). Interpreted as an additive uplift
+# Per-action-type parameter. Interpreted as an additive uplift
 # under `baseline_plus_uplift`, or as an absolute rate under `direct_rates`.
-# CREATE_PAYMENT_LINK is the only action the executor will dispatch (§8.4).
+# CREATE_PAYMENT_LINK is the only action the executor will dispatch.
 action_param_create_payment_link: null
 action_param_create_payment_link_source: null
 
-# ── Feature encoding (§15 item 1) ────────────────────────────────────────────
+# ── Feature encoding ─────────────────────────────────────────────────────────
 # These features are RECORDED, not weighted. No defensible empirical weights
 # exist for them, so inventing coefficients would fabricate a finding. They are
 # written to sim_outcomes.pre_decision_features as an audit record and have no
-# influence on probability. See ADR-016.
+# influence on probability.
 
 # Upper bounds, minor units, ascending. A value above the last bound falls in
 # the final open-ended band.

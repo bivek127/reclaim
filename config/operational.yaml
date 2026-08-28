@@ -1,4 +1,5 @@
-# Operational timings. Lease seconds match SPECIFICATION.md §4.1.
+# Operational timings. A worker holds a case only for its lease duration; a
+# write carrying an expired lease's fencing token is refused.
 lease_seconds:
   enrichment: 30
   diagnosis: 90
@@ -7,15 +8,16 @@ lease_seconds:
   reconciliation: 45
   verification: 45
 
-# Execution lease must be >= 2× this value (§4.1).
+# The execution lease must be at least twice this value, so a lease cannot
+# lapse while a provider call is still outstanding.
 provider_http_timeout_seconds: 30
 
 sweeper_batch_size: 100
 sweeper_interval_seconds: 15
 ttl_expiry_interval_seconds: 60
 
-# Provider adapter (§8). Per-operation timeouts; both must stay
-# <= provider_http_timeout_seconds so the §4.1 lease relation still holds.
+# Provider adapter. Per-operation timeouts; both must stay at or below
+# provider_http_timeout_seconds, so the lease relation above still holds.
 provider_base_url: api.razorpay.com
 provider_connect_timeout_seconds: 5
 provider_create_link_timeout_seconds: 15
@@ -25,13 +27,14 @@ provider_fetch_timeout_seconds: 10
 # (900s) ahead and more than 6 months ahead.
 payment_link_ttl_seconds: 3600
 
-# Reconciliation loop (§6.2). max_polls counts provider GETs, not the
-# bounded same-key re-POSTs, which have their own §5.4 cap.
+# Reconciliation loop. max_polls counts provider GETs, not the bounded
+# same-key re-POSTs, which are capped separately below.
 reconciliation_interval_seconds: 30
 reconciliation_max_polls: 20
 reconciliation_max_posts_per_attempt: 3
 
-# Ollama diagnosis (§9 / §20). Application startup must not require Ollama.
+# Ollama diagnosis. Application startup must not require Ollama: when it is
+# unreachable the deterministic fallback runs instead.
 ollama_host: 127.0.0.1
 ollama_port: 11434
 ollama_model: gemma3:12b

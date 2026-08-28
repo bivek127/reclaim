@@ -104,7 +104,7 @@ def test_2xx_with_a_json_array_body_is_unparseable(make_adapter) -> None:
 
 
 def test_expired_link_exposes_no_terminal_failure_flag(make_adapter) -> None:
-    """Expiry as terminal-failure evidence is unverified (ADR-006), so it
+    """Expiry as terminal-failure evidence is unverified, so it
     must not be readable as terminal."""
     adapter, _ = make_adapter(json_response(200, link_payload(status="expired")))
 

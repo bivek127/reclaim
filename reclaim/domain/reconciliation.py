@@ -8,7 +8,7 @@ call ever happens inside a transaction.
 
     ROUND 1 (always)   read-only GET by the persisted reference
     ROUND 2 (rare)     same-key re-POST, permitted ONLY when durable local
-                       state proves the original POST never went out (ADR-013)
+                       state proves the original POST never went out
 
 The pivotal judgement is NOT made from the provider's answer alone. `NOT_FOUND`
 means different things depending on what our own committed rows say happened:
@@ -302,7 +302,7 @@ def classify(fetch: FetchResult, attempt: OpenAttempt) -> tuple[CaseState, str]:
 
       FOUND       the mechanism exists -> adopt it, whatever its status.
                   No LinkStatus is terminal-failure evidence: expiry is
-                  unverified for non-payment (ADR-006) and CANCELLED has the
+                  unverified for non-payment, and CANCELLED has the
                   same unverified-finality problem.
       NOT_FOUND   authoritative ONLY when the POST provably went out. Then it
                   means the provider created nothing -> confirmed failure.
@@ -459,7 +459,7 @@ def reconcile_case(
             applied=False,
         )
 
-    # --- Round 2: same-key re-POST, only when provably safe (ADR-013) --------
+    # --- Round 2: same-key re-POST, only when provably safe ------------------
     if reason == "reconcile_inconclusive_not_found":
         if post_count(conn, attempt.attempt_id) < posts_allowed:
             return _repost(
@@ -508,7 +508,7 @@ def _fenced(
 
 
 # ---------------------------------------------------------------------------
-# Round 2 -- the bounded same-key re-POST (ADR-013)
+# Round 2 -- the bounded same-key re-POST
 # ---------------------------------------------------------------------------
 
 
