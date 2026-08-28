@@ -54,6 +54,7 @@ from reclaim.domain.diagnosis import (
     load_trusted_context,
 )
 from reclaim.domain.policy import (
+    authorising_decision_id,
     ApplyResult,
     PolicyBlocked,
     PolicyDecision,
@@ -151,6 +152,7 @@ __all__ = [
     "PolicyDecision",
     "PolicyFacts",
     "apply_policy",
+    "authorising_decision_id",
     "evaluate",
     "evaluate_once",
     "load_policy_inputs",

@@ -13,6 +13,7 @@ observes an execution outcome.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 import psycopg
@@ -61,6 +62,11 @@ class BreakerOpen(Exception):
 class BreakerState:
     state: str
     consecutive_failures: int
+    #: When an open breaker becomes eligible to close. Written by
+    #: `set_breaker_state` and exposed here so the monitor can enforce the
+    #: reset without reaching into the table itself. NULL while CLOSED, and
+    #: also while OPEN if no reset window was supplied.
+    reset_after: datetime | None = None
 
     @property
     def is_open(self) -> bool:
@@ -73,14 +79,18 @@ def read_breaker(conn: psycopg.Connection, *, for_update: bool = False) -> Break
     lock = " FOR UPDATE" if for_update else ""
     row = conn.execute(
         f"""
-        SELECT state, consecutive_failures
+        SELECT state, consecutive_failures, reset_after
           FROM circuit_breaker
          WHERE id = %s{lock}
         """,
         (BREAKER_ID,),
     ).fetchone()
     assert row is not None, "circuit_breaker singleton row is missing"
-    return BreakerState(state=str(row[0]), consecutive_failures=int(row[1]))
+    return BreakerState(
+        state=str(row[0]),
+        consecutive_failures=int(row[1]),
+        reset_after=row[2],
+    )
 
 
 def record_execution_outcome(

@@ -56,6 +56,22 @@ class ApiClient:
     def post(self, path: str, payload: dict):
         return self._call("POST", path, payload)
 
+    def post_raw(self, path: str, raw: bytes, headers: dict[str, str] | None = None):
+        """POST exact bytes with arbitrary headers.
+
+        Signature verification is defined over the bytes as received, so a
+        webhook test must be able to send a body the client does not re-encode.
+        """
+        req = Request(self.base + path, data=raw, method="POST")
+        req.add_header("Content-Type", "application/json")
+        for key, value in (headers or {}).items():
+            req.add_header(key, value)
+        try:
+            with urlopen(req, timeout=10) as r:
+                return r.status, r.read()
+        except HTTPError as e:
+            return e.code, e.read()
+
 
 @pytest.fixture(scope="session")
 def api_server(migrated_database: str) -> Iterator[ApiClient]:

@@ -336,6 +336,32 @@ def load_policy_inputs(
     return facts, int(diag[0])
 
 
+def authorising_decision_id(
+    conn: psycopg.Connection, case_id: int
+) -> int | None:
+    """The ALLOW decision that authorised this case's current pending action.
+
+    A case may accumulate several ALLOW decisions over its life: each failed
+    attempt routes back through POLICY_EVAL, which records a new one before
+    returning the case to ACTION_READY. The most recent is therefore the one
+    that authorised the action now waiting to be dispatched.
+
+    Read-only. Returns None when no ALLOW decision exists, which is a data
+    anomaly for a case in ACTION_READY rather than something to paper over
+    here -- the caller decides what to do about it.
+    """
+    row = conn.execute(
+        """
+        SELECT id FROM policy_decisions
+         WHERE case_id = %s AND verdict = 'ALLOW'
+         ORDER BY id DESC
+         LIMIT 1
+        """,
+        (case_id,),
+    ).fetchone()
+    return int(row[0]) if row is not None else None
+
+
 def _assert_diagnosis(
     conn: psycopg.Connection, *, case_id: int, diagnosis_id: int
 ) -> None:

@@ -27,6 +27,18 @@ provider_fetch_timeout_seconds: 10
 # (900s) ahead and more than 6 months ahead.
 payment_link_ttl_seconds: 3600
 
+# How often each background job wakes up. A job holds nothing between ticks:
+# it claims, works, releases, and sleeps, so an interval is a latency budget
+# rather than a lock duration.
+case_worker_interval_seconds: 5
+executor_interval_seconds: 5
+verifier_interval_seconds: 15
+review_expiry_interval_seconds: 60
+# A closed payment window is not TTL exhaustion, so this sweep is tuned
+# separately from ttl_expiry even though both currently run every minute.
+action_deadline_expiry_interval_seconds: 60
+breaker_monitor_interval_seconds: 10
+
 # Reconciliation loop. max_polls counts provider GETs, not the bounded
 # same-key re-POSTs, which are capped separately below.
 reconciliation_interval_seconds: 30

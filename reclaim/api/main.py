@@ -18,6 +18,7 @@ Route -> operation it delegates to:
     POST /api/reviews/{id}/approve   -- domain.claim_case + domain.approve_review
     POST /api/reviews/{id}/reject    -- domain.claim_case + domain.reject_review
     GET  /api/system                 -- readmodel.system_status
+    POST /api/webhooks/razorpay      -- ingest.ingest_webhook
 
 The two write routes compose `claim_case` with the matching review primitive,
 which is what `approve_once` already does internally. Fencing, expected-state
@@ -28,7 +29,8 @@ from __future__ import annotations
 from typing import Any
 
 import psycopg
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -45,6 +47,9 @@ from reclaim.domain import (
     reject_review,
 )
 from reclaim.domain.states import CASE_STATES, CaseState
+from reclaim.ingest import ingest_webhook
+from reclaim.provider.config import load_provider_config
+from reclaim.provider.razorpay import verify_webhook_signature
 
 # Only actions the executor can actually dispatch may be offered to a reviewer.
 # RETRY_CHARGE has no safe provider implementation and the executor raises on
@@ -265,6 +270,63 @@ def post_approve(case_id: int, body: ReviewDecision) -> dict[str, Any]:
 @app.post("/api/reviews/{case_id}/reject")
 def post_reject(case_id: int, body: ReviewDecision) -> dict[str, Any]:
     return _decide(case_id, body, approve=False)
+
+
+# Razorpay does not publish the event id in the webhook body, so the transport
+# has to take it from a header. `X-Razorpay-Event-Id` is an UNVERIFIED provider
+# assumption: it has not been observed against a live delivery in this project,
+# unlike the signature header. It is named here rather than guessed at because
+# `provider_event_id` is the outermost idempotency key -- `uq_provider_event`
+# dedupes on it, and a synthesised value would silently change what "the same
+# delivery" means.
+WEBHOOK_EVENT_ID_HEADER = "X-Razorpay-Event-Id"
+
+
+@app.post("/api/webhooks/razorpay")
+async def post_razorpay_webhook(
+    request: Request,
+    x_razorpay_signature: str | None = Header(default=None),
+    x_razorpay_event_id: str | None = Header(default=None),
+) -> Response:
+    """Verify the delivery, then hand the untrusted bytes to the domain.
+
+    Ordering is the security property: the signature is checked over the exact
+    received bytes before anything reads them. This route never parses the
+    payload -- `ingest_webhook` does, after it has been told the signature held.
+
+    An event id that is missing or blank is refused before any database work.
+    Inventing one would let two unidentifiable deliveries create two cases for
+    one obligation, which is precisely what the unique index prevents when a
+    real id is present.
+    """
+    event_id = (x_razorpay_event_id or "").strip()
+    if not event_id:
+        raise HTTPException(400, f"{WEBHOOK_EVENT_ID_HEADER} is required")
+
+    # The body is read as bytes and never decoded, re-encoded or parsed here:
+    # the signature covers exactly what arrived, and any normalisation on the
+    # way in would verify something the sender did not sign.
+    body = await request.body()
+    secret = load_provider_config().webhook_secret or ""
+    signature_valid = verify_webhook_signature(body, x_razorpay_signature or "", secret)
+
+    # psycopg is blocking, so the domain call runs off the event loop.
+    result = await run_in_threadpool(_ingest, signature_valid, body, event_id)
+
+    # The domain decides the status: 400 for a rejected signature, 200 for
+    # everything it accepted, including a duplicate or a malformed payload it
+    # chose to record. The transport does not second-guess that.
+    return Response(status_code=result.http_status)
+
+
+def _ingest(signature_valid: bool, body: bytes, event_id: str) -> Any:
+    with app_conn() as conn:
+        return ingest_webhook(
+            conn,
+            signature_valid=signature_valid,
+            raw_body=body,
+            provider_event_id=event_id,
+        )
 
 
 @app.get("/api/system")
