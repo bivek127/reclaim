@@ -8,9 +8,10 @@ clause 2 of that list.
 
 ---
 
-## Done
+## Foundations
 
 ### Database
+
 Status: complete.
 
 - 22 versioned migrations in `db/migrations/`, applied by
@@ -27,6 +28,7 @@ grant plus a trigger enforce "revenue only after verification" (contract 6).
 These are not application checks that a future caller can forget.
 
 ### Obligation and case identity
+
 Status: complete.
 
 - `reclaim/domain/anchors.py` — resolves the obligation anchor (order or
@@ -38,6 +40,7 @@ Identity binds to the anchor, never to a payment id, case id, or webhook event
 id (contract 1). A duplicate delivery produces one case.
 
 ### State machine
+
 Status: complete.
 
 - `reclaim/domain/transitions.py` — a single `transition()` is the only thing
@@ -48,6 +51,7 @@ Status: complete.
   it cannot drift from the implementation.
 
 ### Leases, fencing, and the sweeper
+
 Status: complete.
 
 - `reclaim/domain/leases.py` — `claim_case` / `claim_next` using
@@ -63,7 +67,10 @@ Time spent `HALTED` does not consume a case's TTL (contract 8).
 
 ---
 
+## Recovery pipeline
+
 ### Provider adapter (Razorpay)
+
 Status: implemented and contract-verified as far as a test account can reach.
 
 `reclaim/provider/`:
@@ -106,6 +113,7 @@ both have a safe default:
 | Subscription cycle ids are stable | The existing anchor is retained unchanged. Closing this needs a live subscription with two consecutive failed cycles. |
 
 ### Execution and idempotency
+
 Status: complete, verified against real PostgreSQL.
 
 - `reclaim/domain/execution.py` — commit, then call the provider, then commit
@@ -125,6 +133,7 @@ Boundaries held:
   partial unique indexes rather than by application checks (contract 4).
 
 ### Reconciliation
+
 Status: complete, verified against real PostgreSQL.
 
 `reclaim/domain/reconciliation.py` claims an ambiguous case, re-queries the
@@ -147,6 +156,7 @@ new idempotency key is never minted during reconciliation. No link status is
 treated as proof of non-payment.
 
 ### Verification and revenue
+
 Status: complete, verified against real PostgreSQL.
 
 `reclaim/domain/verification.py` correlates the provider's webhook with an
@@ -168,6 +178,7 @@ verifier role only, and a test asserts the application role is refused.
 Concurrent verifiers on separate connections recognise revenue exactly once.
 
 ### Deterministic policy
+
 Status: complete, verified against real PostgreSQL.
 
 - `reclaim/domain/policy.py` — a pure `evaluate(facts, config)` plus a
@@ -185,6 +196,7 @@ history. The formula is defined, but no schema mapping for it is specified yet,
 so it is an explicit input rather than something inferred from the database.
 
 ### LLM diagnosis
+
 Status: complete, verified against real PostgreSQL — including with the model
 server stopped.
 
@@ -201,6 +213,7 @@ model is unreachable the deterministic fallback runs and the workflow
 continues — which is the only way to know the fallback is real.
 
 ### Human review
+
 Status: complete, verified against real PostgreSQL.
 
 `reclaim/domain/review.py` — pending entry, an evidence loader, approve, reject,
@@ -213,7 +226,29 @@ provider requests, never moves a case into execution, never calls a provider,
 and never increments the attempt count. There is no side channel that moves
 money.
 
+### Audit and reconstruction
+
+Status: complete.
+
+- `reclaim/audit/` — `load_case_audit_trail` is the package's only database
+  access; reconstruction is a pure fold that imports no driver, names no table,
+  and takes no connection. Enforced by tests that inspect the module, not by
+  convention.
+- Producers cover the whole lifecycle: case created and deduplicated, diagnosis,
+  policy, provider request and response (including a response received but not
+  applied because the worker's token had gone stale), verification, review,
+  breaker open and reset, lease claim and release, rejected stale writes, and
+  one state transition per `transition()`.
+
+A case's story can be rebuilt from `audit_events` alone — obligation, action
+types and order, attempts and references, worker and fencing token, model,
+policy version, provider correlation id, state changes with reasons, the
+reviewer's decision, verification, and lease activity. Anything the trail
+cannot supply is **named** in the result rather than returned as a silent
+`None`: absence of evidence is itself evidence.
+
 ### Simulator
+
 Status: complete.
 
 `reclaim/domain/simulator.py` evaluates recovery outcomes across a control and a
@@ -251,43 +286,39 @@ defensible empirical weights exist for them.
 
 ---
 
-### Audit and reconstruction
+## Operator console
+
 Status: complete.
 
-- `reclaim/audit/` — `load_case_audit_trail` is the package's only database
-  access; reconstruction is a pure fold that imports no driver, names no table,
-  and takes no connection. Enforced by tests that inspect the module, not by
-  convention.
-- Producers cover the whole lifecycle: case created and deduplicated, diagnosis,
-  policy, provider request and response (including a response received but not
-  applied because the worker's token had gone stale), verification, review,
-  breaker open and reset, lease claim and release, rejected stale writes, and
-  one state transition per `transition()`.
+A React and TypeScript console served by a thin Express layer that holds no
+domain logic and opens no database connection. It talks to a FastAPI adapter
+whose routes each validate input, call exactly one existing domain or read-model
+function, and translate the outcome.
 
-A case's story can be rebuilt from `audit_events` alone — obligation, action
-types and order, attempts and references, worker and fencing token, model,
-policy version, provider correlation id, state changes with reasons, the
-reviewer's decision, verification, and lease activity. Anything the trail
-cannot supply is **named** in the result rather than returned as a silent
-`None`: absence of evidence is itself evidence.
+- `reclaim/readmodel/` — read-only projections. No domain behaviour.
+- `reclaim/api/` — the HTTP boundary. Write routes compose an existing lease
+  claim with an existing review primitive; fencing, expected-state checks, the
+  transition, and the audit row all stay inside the domain.
+- `web/` — six surfaces: overview, case queue, case investigation, audit
+  timeline, human review, and system status.
 
-### End-to-end hardening
-Status: implemented.
+Design rules the console holds to:
 
-- `tests/test_matrix_coverage.py` checks that every failure-mode and invariant
-  the design names resolves to a real test function, so "the matrix is green"
-  is checkable rather than asserted. On its first run it failed on four names:
-  three were behaviourally covered under different names, one was genuinely
-  missing.
-- `sweeper.expire_action_deadlines()` escalates a case whose payment window has
-  closed, reusing the existing escalation provenance and single pending review.
-  It is deliberately separate from TTL expiry — a closed window is not budget
-  exhaustion, and the two stay distinct in the audit trail.
-- The sweep runs on our own deadline, not the provider's, so our "this action is
-  dead" never precedes theirs.
-- The sweep never marks an action failed, creates no second action, consumes no
-  attempt budget, calls no provider, and cannot write revenue. Reading an
-  expired link as proof of non-payment is exactly what it must not do.
+- Every figure traces to an API response. There are no trends, rates, or
+  comparisons, because the backend stores no history to derive them from and a
+  decorative chart would be a claim the data cannot support.
+- An unreachable service is never rendered as an empty estate. A panel that
+  cannot read its data says so; it does not show a zero.
+- Money is integer minor units end to end, formatted by integer division and
+  remainder. Currency is never inferred, and an amount without a known currency
+  is not displayed as if denominated.
+- Status is never carried by colour alone: every badge pairs a tint with a shape
+  and the literal state name.
+- The visual hierarchy mirrors the trust hierarchy — financial facts above
+  independent verification, above deterministic policy, above provider claims,
+  above model diagnosis. Approval is never described as a payment.
+- Text contrast meets WCAG AA, checked in the token file by a test rather than
+  by eye.
 
 ---
 
@@ -298,7 +329,23 @@ monitor job that does not exist. The executor reads the gate and counts
 failures, but never writes the breaker's state.
 
 *Consequence, stated plainly:* the circuit breaker cannot open or reset in a
-running system. Failures accumulate and nothing acts on them.
+running system. Failures accumulate and nothing acts on them. The system view
+reports this honestly rather than implying a recovery that cannot happen.
+
+**A lift confidence interval.** The simulator reports a point estimate. Naming a
+statistical method here would be inventing a contract the design does not state.
+
+---
+
+## Known gaps
+
+- **Recovered totals are single-currency.** The overview aggregate sums
+  `recovered_amount_minor` without grouping by currency, so the figure has no
+  denomination once a second currency exists. The console shows a case count
+  instead of an undenominated amount. The fix is to group by currency in the
+  read model.
+- **Conflicting payment history** must be supplied by callers until a schema
+  mapping for it is defined.
 
 ---
 
@@ -308,7 +355,14 @@ running system. Failures accumulate and nothing acts on them.
 python3 -m pytest tests                                       # everything
 python3 -m pytest tests/provider -m "not provider_contract"   # adapter, offline
 python3 -m pytest tests/provider -m provider_contract         # needs test-mode keys
+cd web && npx vitest run                                      # console
 ```
 
+Last run (2026-08-28, no Razorpay credentials sourced): **1004 passed, 9
+skipped** for the Python suite against real PostgreSQL, and **198 passed** for
+the console. The nine skips are the provider contract tests that need live
+test-mode credentials.
+
 Database behaviour, concurrency, transactions, constraints, and fencing are
-tested against real PostgreSQL rather than a stub.
+tested against real PostgreSQL rather than a stub — a fake cannot refuse a write
+the way a partial unique index does.
