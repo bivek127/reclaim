@@ -190,17 +190,23 @@ def test_no_runtime_module_executes_sql() -> None:
         assert "cursor(" not in code, f"{module.name} opens a cursor"
 
 
-def test_the_case_worker_is_not_registered() -> None:
-    """Deliberately absent: no domain function defines the NEW-to-POLICY_EVAL
-    sequence, and `conflicting_history` has no schema mapping."""
-    from reclaim.jobs.jobs import register_all_jobs
-    from reclaim.jobs.registry import JobRegistry
+def test_only_the_defined_case_worker_leg_is_registered() -> None:
+    """Diagnosis is wired; the legs whose behaviour is undefined are not.
 
-    names = register_all_jobs(JobRegistry()).names()
+    No domain function defines entry from NEW, enrichment, or ATTEMPT_FAILED
+    routing, and `conflicting_history` has no schema mapping, so no job may
+    claim those states.
+    """
+    from reclaim.jobs.jobs import register_all_jobs
+    from reclaim.jobs.registry import JobKind, JobRegistry
+
+    registry = register_all_jobs(JobRegistry())
+    names = registry.names()
     assert "case-worker" not in names
     assert names == [
         "action-deadline-expiry",
         "breaker-monitor",
+        "diagnosis",
         "executor",
         "reconciler",
         "review-expiry",
@@ -209,7 +215,14 @@ def test_the_case_worker_is_not_registered() -> None:
         "verifier",
     ]
 
+    undefined = {CaseState.NEW, CaseState.ENRICHING, CaseState.ATTEMPT_FAILED}
+    for name in names:
+        spec = registry.get(name)
+        if spec.kind is JobKind.PER_CASE:
+            claimed = set(spec.expected_states or ())
+            assert not (claimed & undefined), f"{name} claims an undefined state"
+
     root = pathlib.Path(__file__).resolve().parents[2] / "reclaim" / "jobs"
     registered = (root / "jobs.py").read_text() + (root / "percase.py").read_text()
-    for absent in ("diagnose_case", "apply_policy", "ingest_webhook", "notifier"):
+    for absent in ("apply_policy", "ingest_webhook", "notifier"):
         assert absent not in registered, f"the runtime wires {absent}"

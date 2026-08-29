@@ -92,8 +92,8 @@ def lease_row(conn: psycopg.Connection, case_id: int) -> tuple:
 def test_exactly_the_defined_per_case_jobs_are_registered(
     registry: JobRegistry,
 ) -> None:
-    """The case worker is absent: its contract is still incomplete."""
-    assert registry.names() == ["executor", "reconciler", "verifier"]
+    """Diagnosis is the only case-worker leg with a settled contract."""
+    assert registry.names() == ["diagnosis", "executor", "reconciler", "verifier"]
 
 
 @pytest.mark.parametrize("name,state,lease,interval,conn_fn,_fn", JOBS, ids=IDS)

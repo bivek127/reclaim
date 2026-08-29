@@ -16,25 +16,67 @@ from typing import Any, Callable
 
 import psycopg
 
+from reclaim.config import load_ollama_config
+from reclaim.domain.diagnosis import diagnose_case
 from reclaim.domain.execution import dispatch
 from reclaim.domain.policy import authorising_decision_id
 from reclaim.domain.reconciliation import reconcile_case
 from reclaim.domain.states import CaseState
 from reclaim.domain.verification import verify_case
+from reclaim.llm.client import LlmClient, OllamaClient
 from reclaim.provider.config import load_provider_config
 from reclaim.provider.contract import PaymentProvider
 from reclaim.provider.razorpay import RazorpayAdapter
 
+DIAGNOSIS_WORKER_ID = "diagnosis"
 EXECUTOR_WORKER_ID = "executor"
 RECONCILER_WORKER_ID = "reconciler"
 VERIFIER_WORKER_ID = "verifier"
 
 ProviderFactory = Callable[[], PaymentProvider]
+LlmFactory = Callable[[], LlmClient]
 
 
 def default_provider() -> PaymentProvider:
     """The configured Razorpay adapter, built from existing provider config."""
     return RazorpayAdapter(load_provider_config())
+
+
+def default_llm() -> LlmClient:
+    """The configured Ollama client, built from existing operational config."""
+    return OllamaClient(load_ollama_config())
+
+
+def diagnosis_operation(llm: LlmFactory = default_llm) -> Any:
+    """Classify one claimed case's failure and hand it to policy.
+
+    `diagnose_case` owns the retry ladder, the deterministic fallback for an
+    unreachable or malformed model, the `diagnoses` row and the fenced
+    transition to POLICY_EVAL. It never touches `attempt_count`: a model that
+    cannot answer must not spend a case's financial budget.
+
+    The case-level function is the one wired here rather than `diagnose_once`.
+    The runner already holds the claim, and `diagnose_once` claims a case of
+    its own -- against a lease that has not expired it would find nothing and
+    the job would silently never diagnose.
+
+    The client is built on the tick that needs it, for the same reason the
+    provider is: a model that is down must not stop the job table from loading.
+    """
+
+    def operation(
+        conn: psycopg.Connection, case_id: int, *, fencing_token: int, **_: Any
+    ) -> Any:
+        return diagnose_case(
+            conn,
+            case_id,
+            llm=llm(),
+            fencing_token=fencing_token,
+            worker_id=DIAGNOSIS_WORKER_ID,
+        )
+
+    operation.__name__ = "diagnosis_operation"
+    return operation
 
 
 def reconciler_operation(provider: ProviderFactory = default_provider) -> Any:

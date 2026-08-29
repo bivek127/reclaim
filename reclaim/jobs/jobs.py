@@ -24,6 +24,7 @@ from reclaim.domain import (
 from reclaim.domain.states import CaseState
 from reclaim.jobs.breaker import breaker_monitor_operation
 from reclaim.jobs.percase import (
+    diagnosis_operation,
     executor_operation,
     reconciler_operation,
     verifier_operation,
@@ -35,6 +36,7 @@ TTL_EXPIRY = "ttl-expiry"
 REVIEW_EXPIRY = "review-expiry"
 ACTION_DEADLINE_EXPIRY = "action-deadline-expiry"
 BREAKER_MONITOR = "breaker-monitor"
+DIAGNOSIS = "diagnosis"
 EXECUTOR = "executor"
 RECONCILER = "reconciler"
 VERIFIER = "verifier"
@@ -121,16 +123,35 @@ def register_per_case_jobs(
     registry: JobRegistry = JOBS,
     config: dict | None = None,
     provider: Any = None,
+    llm: Any = None,
 ) -> JobRegistry:
     """Register the per-case jobs whose contract the job table fully states.
 
     Each claims one state, holds the lease that state's work is sized for, and
-    hands the claim's fencing token straight to the domain. The executor and
-    case worker are deliberately absent -- see the Stage 5 report.
+    hands the claim's fencing token straight to the domain.
+
+    Diagnosis is the only leg of the case worker registered here. Entry from
+    NEW, enrichment, and ATTEMPT_FAILED routing have no settled contract: a job
+    claiming those states would have to decide what they mean, which is not a
+    scheduling decision to make.
     """
     values = config if config is not None else load_operational()
     kwargs = {} if provider is None else {"provider": provider}
+    llm_kwargs = {} if llm is None else {"llm": llm}
 
+    # The case worker's cadence covers this leg; the states it does not yet
+    # claim would run on the same tick once their contract exists.
+    registry.register(
+        JobSpec(
+            name=DIAGNOSIS,
+            kind=JobKind.PER_CASE,
+            interval_seconds=int(values["case_worker_interval_seconds"]),
+            operation=diagnosis_operation(**llm_kwargs),
+            connect=app_conn,
+            expected_states=(CaseState.DIAGNOSING,),
+            lease_seconds=lease_seconds_for("diagnosis"),
+        )
+    )
     registry.register(
         JobSpec(
             name=EXECUTOR,
