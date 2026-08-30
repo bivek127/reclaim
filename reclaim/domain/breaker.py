@@ -19,12 +19,16 @@ from typing import Any
 import psycopg
 from psycopg.types.json import Jsonb
 
+from reclaim.domain.states import CaseState
+from reclaim.domain.transitions import transition
 from reclaim.provider.contract import UNKNOWN_OUTCOMES, ProviderOutcome
 
 BREAKER_ID = 1
 
 EVENT_BREAKER_OPENED = "breaker_opened"
 EVENT_BREAKER_RESET = "breaker_reset"
+
+REASON_BREAKER_RESUMED = "breaker_closed_resumed"
 
 # Outcomes that count against breaker health. The breaker is an
 # infrastructure-health signal, not a financial verdict: an outage produces
@@ -200,3 +204,72 @@ def set_breaker_state(
         ),
     )
     return True
+
+
+def resume_halted_cases(conn: psycopg.Connection, *, limit: int) -> int:
+    """HALTED -> ACTION_READY for up to `limit` cases, once the breaker is
+    closed. The batch counterpart to the lease claim `HALTED` cannot use:
+    `claim_next` refuses it outright (`UNCLAIMABLE_STATES`), because there is
+    nothing case-specific to decide -- every currently HALTED case gets the
+    same answer at the same instant, which is a batch decision, not a lease.
+
+    Same shape as `sweeper.expire_ttl`: select and lock a bounded batch,
+    bump each row's fencing token while still holding that lock (safe without
+    re-checking the token, because `FOR UPDATE SKIP LOCKED` already means no
+    other worker could have touched this row since the select), then hand the
+    freshly observed token to `transition()`, which is the only thing that
+    writes `state` and already implements the TTL-clock resume (§4.4) this
+    needs -- entering `ACTION_READY` restarts `active_since` from `now()` and
+    keeps the elapsed time the halt had already banked. Nothing here decides
+    that; `transition()` does, unchanged.
+
+    Performs no financial operation: it writes only `recovery_cases`, calls no
+    provider, and creates no action. The breaker is not re-checked here on
+    purpose -- resuming is not financially consequential, and the executor's
+    own dispatch-time gate re-verifies the breaker fresh before anything is
+    ever charged, so a breaker that reopens in the gap between this call and
+    that check is caught there, not here.
+
+    Caller's responsibility: only invoke this once the breaker is confirmed
+    CLOSED. This function does not read the breaker itself, so it never
+    second-guesses that decision.
+    """
+    resumed = 0
+    with conn.transaction():
+        rows = conn.execute(
+            """
+            SELECT id, fencing_token
+              FROM recovery_cases
+             WHERE state = 'HALTED'
+             FOR UPDATE SKIP LOCKED
+             LIMIT %s
+            """,
+            (limit,),
+        ).fetchall()
+
+        for case_id, token in rows:
+            bumped = conn.execute(
+                """
+                UPDATE recovery_cases
+                   SET fencing_token = fencing_token + 1,
+                       updated_at = now()
+                 WHERE id = %s
+                RETURNING fencing_token
+                """,
+                (case_id,),
+            ).fetchone()
+            if bumped is None:
+                continue
+            new_token = bumped[0]
+            applied = transition(
+                conn,
+                case_id,
+                CaseState.HALTED,
+                CaseState.ACTION_READY,
+                new_token,
+                REASON_BREAKER_RESUMED,
+            )
+            if applied:
+                resumed += 1
+
+    return resumed

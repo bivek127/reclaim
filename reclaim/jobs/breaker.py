@@ -20,7 +20,7 @@ from typing import Any
 
 import psycopg
 
-from reclaim.domain.breaker import read_breaker, set_breaker_state
+from reclaim.domain.breaker import read_breaker, resume_halted_cases, set_breaker_state
 
 log = logging.getLogger(__name__)
 
@@ -34,12 +34,18 @@ def monitor_breaker(
     *,
     failure_threshold: int,
     reset_seconds: int,
+    resume_limit: int | None = None,
     now: datetime | None = None,
 ) -> str:
     """One monitor tick. Returns what it decided, for logging and assertions.
 
     Opening keeps the failure count that justified it; closing clears it. Both
     are existing `set_breaker_state` behaviour and are not re-implemented here.
+
+    A breaker that is already CLOSED, or that this tick just closed, also
+    resumes up to `resume_limit` HALTED cases in the same tick -- the same
+    component that establishes "closed" is the one positioned to act on it,
+    rather than a second job re-deriving the same fact from the same row.
     """
     at = now or datetime.now(timezone.utc)
     breaker = read_breaker(conn)
@@ -61,9 +67,17 @@ def monitor_breaker(
             worker_id=MONITOR_WORKER_ID,
         )
         log.info("job=%s closed=%s", MONITOR_WORKER_ID, changed)
+        if resume_limit is not None:
+            resumed = resume_halted_cases(conn, limit=resume_limit)
+            log.info("job=%s resumed=%s", MONITOR_WORKER_ID, resumed)
         return "closed" if changed else "already_closed"
 
     if breaker.consecutive_failures < failure_threshold:
+        if resume_limit is not None:
+            # Already CLOSED: nothing above this branch closed it just now,
+            # so any HALTED case here is left over from before this tick.
+            resumed = resume_halted_cases(conn, limit=resume_limit)
+            log.info("job=%s resumed=%s", MONITOR_WORKER_ID, resumed)
         return "below_threshold"
 
     changed = set_breaker_state(
@@ -87,8 +101,10 @@ def breaker_monitor_operation(
 ) -> Any:
     """Bind the configured thresholds to the batch-runner call shape.
 
-    The runner passes `limit`, which a singleton row has no use for; it is
-    accepted and ignored rather than giving this job a bespoke runner.
+    The runner passes `limit` -- the same `sweeper_batch_size` every other
+    batch job bounds its work by -- which now doubles as the bound on how many
+    HALTED cases one tick may resume, since the singleton breaker row itself
+    has no use for it.
     """
 
     def operation(conn: psycopg.Connection, *, limit: int | None = None) -> str:
@@ -96,6 +112,7 @@ def breaker_monitor_operation(
             conn,
             failure_threshold=failure_threshold,
             reset_seconds=reset_seconds,
+            resume_limit=limit,
         )
 
     operation.__name__ = "breaker_monitor_operation"
