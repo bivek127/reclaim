@@ -134,19 +134,19 @@ def register_per_case_jobs(
     Each claims one state, holds the lease that state's work is sized for, and
     hands the claim's fencing token straight to the domain.
 
-    ATTEMPT_FAILED is not claimed here. Its routing rule is settled --
-    docs/ARCHITECTURE.md gives it explicitly -- but no domain accessor yet
-    reads `(attempt_count, max_attempts)` for a case outside POLICY_EVAL, which
-    every existing reader assumes. That is a missing accessor, not an
-    undefined contract, and it is not this registration's job to invent one.
+    Every leg §14 names for the case worker -- NEW through POLICY_EVAL, and
+    ATTEMPT_FAILED routing -- is now claimed. POLICY_EVAL itself is a separate
+    job (`policy`): §3.1 names its owner "Policy Engine", not "Case Worker",
+    and it is a real decision rather than a mechanical transition.
     """
     values = config if config is not None else load_operational()
     kwargs = {} if provider is None else {"provider": provider}
     llm_kwargs = {} if llm is None else {"llm": llm}
 
-    # Both edges are mechanical, so one job walks them on one cadence. The
-    # enrichment lease covers the pair: neither transition does work beyond the
-    # write itself.
+    # All three edges are mechanical -- two are bare transitions, and
+    # ATTEMPT_FAILED routing is one guarded read plus a transition, no network
+    # call and no work sized differently -- so one job walks them on one
+    # cadence under the enrichment lease.
     registry.register(
         JobSpec(
             name=CASE_WORKER,
@@ -154,7 +154,11 @@ def register_per_case_jobs(
             interval_seconds=int(values["case_worker_interval_seconds"]),
             operation=case_worker_operation(),
             connect=app_conn,
-            expected_states=(CaseState.NEW, CaseState.ENRICHING),
+            expected_states=(
+                CaseState.NEW,
+                CaseState.ENRICHING,
+                CaseState.ATTEMPT_FAILED,
+            ),
             lease_seconds=lease_seconds_for("enrichment"),
         )
     )

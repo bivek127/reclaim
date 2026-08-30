@@ -18,7 +18,7 @@ import psycopg
 
 from reclaim.config import load_ollama_config
 from reclaim.domain.diagnosis import diagnose_case
-from reclaim.domain.execution import dispatch
+from reclaim.domain.execution import dispatch, resolve_attempt_budget
 from reclaim.domain.leases import fenced_transition
 from reclaim.domain.policy import (
     apply_policy,
@@ -49,10 +49,17 @@ VERIFIER_WORKER_ID = "verifier"
 #
 # `enrichment_pass_through` records in the audit trail that no enrichment was
 # performed, which is the current contract rather than a missing step.
+#
+# ATTEMPT_FAILED is deliberately absent from this map: its target depends on
+# the case's own attempt budget, not on the state alone, so it is routed by
+# the operation function below rather than a fixed lookup.
 CASE_WORKER_ADVANCE: dict[CaseState, tuple[CaseState, str]] = {
     CaseState.NEW: (CaseState.ENRICHING, "case_worker_started"),
     CaseState.ENRICHING: (CaseState.DIAGNOSING, "enrichment_pass_through"),
 }
+
+REASON_ATTEMPT_FAILED_BUDGET_REMAINS = "attempt_failed_budget_remains"
+REASON_ATTEMPT_FAILED_BUDGET_EXHAUSTED = "attempt_failed_budget_exhausted"
 
 ProviderFactory = Callable[[], PaymentProvider]
 LlmFactory = Callable[[], LlmClient]
@@ -71,10 +78,15 @@ def default_llm() -> LlmClient:
 def case_worker_operation() -> Any:
     """Advance one case along the lifecycle edges the case worker owns.
 
-    Both edges are mechanical: entry into ENRICHING, and ENRICHING to
+    NEW and ENRICHING are mechanical: entry into ENRICHING, and ENRICHING to
     DIAGNOSING. Enrichment performs no work of its own -- diagnosis reads only
     obligation and case fields that exist as soon as the case does -- so the
     transition is the whole operation.
+
+    ATTEMPT_FAILED is routing, not a transition to a fixed target: policy gets
+    to decide a fresh action if the case's attempt budget remains, or the case
+    is escalated if it doesn't. This is not a retry of the failed attempt --
+    no dispatch happens here, and no attempt budget is spent by routing alone.
 
     A rejected write is not an error. `fenced_transition` returns False when
     another worker holds a newer token, and the contract for that is to discard
@@ -90,6 +102,9 @@ def case_worker_operation() -> Any:
         claimed_state: CaseState | None = None,
         **_: Any,
     ) -> Any:
+        if claimed_state is CaseState.ATTEMPT_FAILED:
+            return _route_attempt_failed(conn, case_id, fencing_token)
+
         advance = CASE_WORKER_ADVANCE.get(claimed_state)  # type: ignore[arg-type]
         if advance is None:
             # The runner claimed a state this job does not own. Refusing keeps
@@ -110,6 +125,53 @@ def case_worker_operation() -> Any:
 
     operation.__name__ = "case_worker_operation"
     return operation
+
+
+def _route_attempt_failed(
+    conn: psycopg.Connection, case_id: int, fencing_token: int
+) -> bool:
+    budget = resolve_attempt_budget(conn, case_id, fencing_token)
+    if budget is None:
+        # Another worker already reclaimed the case under a newer token;
+        # there is nothing current left to route.
+        return False
+    attempt_count, max_attempts = budget
+
+    if attempt_count < max_attempts:
+        return fenced_transition(
+            conn,
+            case_id,
+            CaseState.ATTEMPT_FAILED,
+            CaseState.POLICY_EVAL,
+            fencing_token,
+            REASON_ATTEMPT_FAILED_BUDGET_REMAINS,
+            worker_id=CASE_WORKER_WORKER_ID,
+        )
+
+    def _escalate(inner: psycopg.Connection) -> None:
+        from reclaim.domain.review import on_entered_escalated
+
+        # No prior policy decision to attach to -- this escalation is caused
+        # by the attempt budget, not by a policy verdict -- so a fresh
+        # provenance row is inserted, the same way TTL and deadline expiry
+        # already escalate with no decision to reuse.
+        on_entered_escalated(
+            inner,
+            case_id,
+            reason_code=REASON_ATTEMPT_FAILED_BUDGET_EXHAUSTED,
+            policy_decision_id=None,
+        )
+
+    return fenced_transition(
+        conn,
+        case_id,
+        CaseState.ATTEMPT_FAILED,
+        CaseState.ESCALATED,
+        fencing_token,
+        REASON_ATTEMPT_FAILED_BUDGET_EXHAUSTED,
+        worker_id=CASE_WORKER_WORKER_ID,
+        side_effects=_escalate,
+    )
 
 
 def diagnosis_operation(llm: LlmFactory = default_llm) -> Any:

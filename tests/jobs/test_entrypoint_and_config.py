@@ -190,12 +190,10 @@ def test_no_runtime_module_executes_sql() -> None:
         assert "cursor(" not in code, f"{module.name} opens a cursor"
 
 
-def test_no_job_claims_a_state_whose_contract_is_undefined() -> None:
-    """ATTEMPT_FAILED has a settled routing rule but no accessor yet reads the
-    columns it needs outside POLICY_EVAL, so claiming it would mean inventing
-    that read at runtime."""
+def test_every_settled_leg_is_registered_and_nothing_else() -> None:
+    """Every state §14 assigns a per-case job to now has one."""
     from reclaim.jobs.jobs import register_all_jobs
-    from reclaim.jobs.registry import JobKind, JobRegistry
+    from reclaim.jobs.registry import JobRegistry
 
     registry = register_all_jobs(JobRegistry())
     names = registry.names()
@@ -212,13 +210,6 @@ def test_no_job_claims_a_state_whose_contract_is_undefined() -> None:
         "ttl-expiry",
         "verifier",
     ]
-
-    undefined = {CaseState.ATTEMPT_FAILED}
-    for name in names:
-        spec = registry.get(name)
-        if spec.kind is JobKind.PER_CASE:
-            claimed = set(spec.expected_states or ())
-            assert not (claimed & undefined), f"{name} claims an undefined state"
 
     root = pathlib.Path(__file__).resolve().parents[2] / "reclaim" / "jobs"
     registered = (root / "jobs.py").read_text() + (root / "percase.py").read_text()

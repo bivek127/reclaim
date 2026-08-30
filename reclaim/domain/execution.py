@@ -115,6 +115,36 @@ def case_target_for(outcome: ProviderOutcome) -> CaseState:
     return _CASE_TARGET.get(outcome, CaseState.AMBIGUOUS)
 
 
+def resolve_attempt_budget(
+    conn: psycopg.Connection, case_id: int, fencing_token: int
+) -> tuple[int, int] | None:
+    """`(attempt_count, max_attempts)` for a case in ATTEMPT_FAILED, fenced.
+
+    This is the one column pair the increment in `dispatch` (TXN 1, below)
+    writes and never reads back for routing -- routing after a failed attempt
+    is a separate concern from spending the budget. `attempt_count` can never
+    exceed `max_attempts` (`ck_attempt_budget`), so a caller comparing the two
+    sees a closed, exhaustive pair: strictly less, or exactly equal.
+
+    Returns None when the case is no longer ATTEMPT_FAILED under this token --
+    another worker already reclaimed it. The caller discards its work rather
+    than routing on a read that is no longer current, the same contract every
+    fenced write already honours; it does not retry under a fresh token.
+    """
+    row = conn.execute(
+        """
+        SELECT attempt_count, max_attempts
+          FROM recovery_cases
+         WHERE id = %s AND state = %s AND fencing_token = %s
+         FOR UPDATE
+        """,
+        (case_id, CaseState.ATTEMPT_FAILED.value, fencing_token),
+    ).fetchone()
+    if row is None:
+        return None
+    return int(row[0]), int(row[1])
+
+
 class BudgetExhausted(Exception):
     """No attempt row is created and no network call happens."""
 
