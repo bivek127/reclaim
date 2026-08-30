@@ -362,6 +362,62 @@ def authorising_decision_id(
     return int(row[0]) if row is not None else None
 
 
+def resolve_conflicting_history(
+    conn: psycopg.Connection,
+    case_id: int,
+    *,
+    window_days: int = 30,
+) -> bool:
+    """Whether this customer has both a recovered and a failed case recently.
+
+    Read-only. Feeds `PolicyFacts.conflicting_history`; `load_policy_inputs`
+    still takes that value from its caller and is unchanged.
+
+    The customer is reached through the case's own obligation, so callers pass
+    a case id and nothing else -- there is no second notion of customer
+    identity to keep in step.
+
+    Only settled outcomes count. `EXPIRED_UNRESOLVED` is neither: nobody
+    established what happened, and reading it as failure would turn an
+    unresolved case into evidence against the customer. Cases still in flight
+    are excluded for the same reason, which also excludes the case being
+    evaluated -- it cannot be terminal while it is waiting on this answer.
+
+    The window is measured from `now()` against each prior case's
+    `updated_at`, the moment its outcome was recorded rather than the moment
+    its recovery began.
+    """
+    row = conn.execute(
+        """
+        WITH customer AS (
+            SELECT o.customer_ref
+              FROM recovery_cases c
+              JOIN financial_obligations o ON o.id = c.obligation_id
+             WHERE c.id = %s
+        )
+        SELECT bool_or(prior.state::text = %s),
+               bool_or(prior.state::text = %s)
+          FROM recovery_cases prior
+          JOIN financial_obligations po ON po.id = prior.obligation_id
+          JOIN customer ON customer.customer_ref = po.customer_ref
+         WHERE prior.id <> %s
+           AND prior.updated_at >= now() - (%s || ' days')::interval
+        """,
+        (
+            case_id,
+            CaseState.VERIFIED_RECOVERED.value,
+            CaseState.VERIFIED_FAILED.value,
+            case_id,
+            str(window_days),
+        ),
+    ).fetchone()
+
+    # No qualifying rows at all aggregates to NULL, which is the same answer as
+    # a customer with history on only one side: not conflicting.
+    assert row is not None
+    return bool(row[0]) and bool(row[1])
+
+
 def _assert_diagnosis(
     conn: psycopg.Connection, *, case_id: int, diagnosis_id: int
 ) -> None:

@@ -63,6 +63,7 @@ from reclaim.domain.policy import (
     evaluate,
     evaluate_once,
     load_policy_inputs,
+    resolve_conflicting_history,
 )
 from reclaim.domain.review import (
     ReviewBlocked,
@@ -156,6 +157,7 @@ __all__ = [
     "evaluate",
     "evaluate_once",
     "load_policy_inputs",
+    "resolve_conflicting_history",
     "ReviewBlocked",
     "ReviewEvidence",
     "ReviewResult",
