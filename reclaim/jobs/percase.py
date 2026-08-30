@@ -19,6 +19,7 @@ import psycopg
 from reclaim.config import load_ollama_config
 from reclaim.domain.diagnosis import diagnose_case
 from reclaim.domain.execution import dispatch
+from reclaim.domain.leases import fenced_transition
 from reclaim.domain.policy import authorising_decision_id
 from reclaim.domain.reconciliation import reconcile_case
 from reclaim.domain.states import CaseState
@@ -28,10 +29,24 @@ from reclaim.provider.config import load_provider_config
 from reclaim.provider.contract import PaymentProvider
 from reclaim.provider.razorpay import RazorpayAdapter
 
+CASE_WORKER_WORKER_ID = "case-worker"
 DIAGNOSIS_WORKER_ID = "diagnosis"
 EXECUTOR_WORKER_ID = "executor"
 RECONCILER_WORKER_ID = "reconciler"
 VERIFIER_WORKER_ID = "verifier"
+
+# The forward edge out of each state the case worker owns, and why the case
+# moved. ENRICHING also has a legal edge to ESCALATED, but that one belongs to
+# TTL expiry, so the forward target is named rather than derived from the legal
+# set. Legality is still the state machine's to enforce: `fenced_transition`
+# raises on a pair it does not allow, so a wrong target here cannot write.
+#
+# `enrichment_pass_through` records in the audit trail that no enrichment was
+# performed, which is the current contract rather than a missing step.
+CASE_WORKER_ADVANCE: dict[CaseState, tuple[CaseState, str]] = {
+    CaseState.NEW: (CaseState.ENRICHING, "case_worker_started"),
+    CaseState.ENRICHING: (CaseState.DIAGNOSING, "enrichment_pass_through"),
+}
 
 ProviderFactory = Callable[[], PaymentProvider]
 LlmFactory = Callable[[], LlmClient]
@@ -45,6 +60,50 @@ def default_provider() -> PaymentProvider:
 def default_llm() -> LlmClient:
     """The configured Ollama client, built from existing operational config."""
     return OllamaClient(load_ollama_config())
+
+
+def case_worker_operation() -> Any:
+    """Advance one case along the lifecycle edges the case worker owns.
+
+    Both edges are mechanical: entry into ENRICHING, and ENRICHING to
+    DIAGNOSING. Enrichment performs no work of its own -- diagnosis reads only
+    obligation and case fields that exist as soon as the case does -- so the
+    transition is the whole operation.
+
+    A rejected write is not an error. `fenced_transition` returns False when
+    another worker holds a newer token, and the contract for that is to discard
+    the work rather than retry: there is no work to discard here, and the case
+    stays where it was for whoever holds the newer claim.
+    """
+
+    def operation(
+        conn: psycopg.Connection,
+        case_id: int,
+        *,
+        fencing_token: int,
+        claimed_state: CaseState | None = None,
+        **_: Any,
+    ) -> Any:
+        advance = CASE_WORKER_ADVANCE.get(claimed_state)  # type: ignore[arg-type]
+        if advance is None:
+            # The runner claimed a state this job does not own. Refusing keeps
+            # an undefined edge from being invented at runtime.
+            raise RuntimeError(
+                f"case {case_id} claimed in {claimed_state} has no case-worker edge"
+            )
+        target, reason = advance
+        return fenced_transition(
+            conn,
+            case_id,
+            claimed_state,  # type: ignore[arg-type]
+            target,
+            fencing_token,
+            reason,
+            worker_id=CASE_WORKER_WORKER_ID,
+        )
+
+    operation.__name__ = "case_worker_operation"
+    return operation
 
 
 def diagnosis_operation(llm: LlmFactory = default_llm) -> Any:

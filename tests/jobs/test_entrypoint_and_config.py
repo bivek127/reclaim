@@ -190,22 +190,19 @@ def test_no_runtime_module_executes_sql() -> None:
         assert "cursor(" not in code, f"{module.name} opens a cursor"
 
 
-def test_only_the_defined_case_worker_leg_is_registered() -> None:
-    """Diagnosis is wired; the legs whose behaviour is undefined are not.
-
-    No domain function defines entry from NEW, enrichment, or ATTEMPT_FAILED
-    routing, and `conflicting_history` has no schema mapping, so no job may
-    claim those states.
-    """
+def test_no_job_claims_a_state_whose_contract_is_undefined() -> None:
+    """ATTEMPT_FAILED has no routing rule and POLICY_EVAL needs
+    `conflicting_history`, which has no schema mapping. Claiming either would
+    mean deciding at runtime what they mean."""
     from reclaim.jobs.jobs import register_all_jobs
     from reclaim.jobs.registry import JobKind, JobRegistry
 
     registry = register_all_jobs(JobRegistry())
     names = registry.names()
-    assert "case-worker" not in names
     assert names == [
         "action-deadline-expiry",
         "breaker-monitor",
+        "case-worker",
         "diagnosis",
         "executor",
         "reconciler",
@@ -215,7 +212,7 @@ def test_only_the_defined_case_worker_leg_is_registered() -> None:
         "verifier",
     ]
 
-    undefined = {CaseState.NEW, CaseState.ENRICHING, CaseState.ATTEMPT_FAILED}
+    undefined = {CaseState.ATTEMPT_FAILED, CaseState.POLICY_EVAL}
     for name in names:
         spec = registry.get(name)
         if spec.kind is JobKind.PER_CASE:

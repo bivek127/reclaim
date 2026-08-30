@@ -9,6 +9,7 @@ from reclaim.jobs.breaker import monitor_breaker
 from reclaim.jobs.jobs import (
     ACTION_DEADLINE_EXPIRY,
     BREAKER_MONITOR,
+    CASE_WORKER,
     DIAGNOSIS,
     REVIEW_EXPIRY,
     SWEEPER,
@@ -26,6 +27,7 @@ from reclaim.jobs.runner import Tick, at_most, run_batch, run_per_case
 __all__ = [
     "ACTION_DEADLINE_EXPIRY",
     "BREAKER_MONITOR",
+    "CASE_WORKER",
     "DIAGNOSIS",
     "JOBS",
     "REVIEW_EXPIRY",

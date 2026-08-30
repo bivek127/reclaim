@@ -24,6 +24,7 @@ from reclaim.domain import (
 from reclaim.domain.states import CaseState
 from reclaim.jobs.breaker import breaker_monitor_operation
 from reclaim.jobs.percase import (
+    case_worker_operation,
     diagnosis_operation,
     executor_operation,
     reconciler_operation,
@@ -36,6 +37,7 @@ TTL_EXPIRY = "ttl-expiry"
 REVIEW_EXPIRY = "review-expiry"
 ACTION_DEADLINE_EXPIRY = "action-deadline-expiry"
 BREAKER_MONITOR = "breaker-monitor"
+CASE_WORKER = "case-worker"
 DIAGNOSIS = "diagnosis"
 EXECUTOR = "executor"
 RECONCILER = "reconciler"
@@ -130,17 +132,30 @@ def register_per_case_jobs(
     Each claims one state, holds the lease that state's work is sized for, and
     hands the claim's fencing token straight to the domain.
 
-    Diagnosis is the only leg of the case worker registered here. Entry from
-    NEW, enrichment, and ATTEMPT_FAILED routing have no settled contract: a job
-    claiming those states would have to decide what they mean, which is not a
-    scheduling decision to make.
+    The case worker's span stops at DIAGNOSING. ATTEMPT_FAILED routing has no
+    settled contract -- no rule selects between POLICY_EVAL and ESCALATED -- and
+    POLICY_EVAL cannot be claimed while `conflicting_history` has no schema
+    mapping. A job claiming either would have to decide what they mean, which is
+    not a scheduling decision to make.
     """
     values = config if config is not None else load_operational()
     kwargs = {} if provider is None else {"provider": provider}
     llm_kwargs = {} if llm is None else {"llm": llm}
 
-    # The case worker's cadence covers this leg; the states it does not yet
-    # claim would run on the same tick once their contract exists.
+    # Both edges are mechanical, so one job walks them on one cadence. The
+    # enrichment lease covers the pair: neither transition does work beyond the
+    # write itself.
+    registry.register(
+        JobSpec(
+            name=CASE_WORKER,
+            kind=JobKind.PER_CASE,
+            interval_seconds=int(values["case_worker_interval_seconds"]),
+            operation=case_worker_operation(),
+            connect=app_conn,
+            expected_states=(CaseState.NEW, CaseState.ENRICHING),
+            lease_seconds=lease_seconds_for("enrichment"),
+        )
+    )
     registry.register(
         JobSpec(
             name=DIAGNOSIS,
