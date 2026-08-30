@@ -92,11 +92,12 @@ def lease_row(conn: psycopg.Connection, case_id: int) -> tuple:
 def test_exactly_the_defined_per_case_jobs_are_registered(
     registry: JobRegistry,
 ) -> None:
-    """The case worker's span stops at DIAGNOSING; later legs are unsettled."""
+    """ATTEMPT_FAILED remains unclaimed; every other settled leg is now wired."""
     assert registry.names() == [
         "case-worker",
         "diagnosis",
         "executor",
+        "policy",
         "reconciler",
         "verifier",
     ]

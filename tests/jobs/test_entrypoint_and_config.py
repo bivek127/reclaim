@@ -191,9 +191,9 @@ def test_no_runtime_module_executes_sql() -> None:
 
 
 def test_no_job_claims_a_state_whose_contract_is_undefined() -> None:
-    """ATTEMPT_FAILED has no routing rule and POLICY_EVAL needs
-    `conflicting_history`, which has no schema mapping. Claiming either would
-    mean deciding at runtime what they mean."""
+    """ATTEMPT_FAILED has a settled routing rule but no accessor yet reads the
+    columns it needs outside POLICY_EVAL, so claiming it would mean inventing
+    that read at runtime."""
     from reclaim.jobs.jobs import register_all_jobs
     from reclaim.jobs.registry import JobKind, JobRegistry
 
@@ -205,6 +205,7 @@ def test_no_job_claims_a_state_whose_contract_is_undefined() -> None:
         "case-worker",
         "diagnosis",
         "executor",
+        "policy",
         "reconciler",
         "review-expiry",
         "sweeper",
@@ -212,7 +213,7 @@ def test_no_job_claims_a_state_whose_contract_is_undefined() -> None:
         "verifier",
     ]
 
-    undefined = {CaseState.ATTEMPT_FAILED, CaseState.POLICY_EVAL}
+    undefined = {CaseState.ATTEMPT_FAILED}
     for name in names:
         spec = registry.get(name)
         if spec.kind is JobKind.PER_CASE:
@@ -221,5 +222,5 @@ def test_no_job_claims_a_state_whose_contract_is_undefined() -> None:
 
     root = pathlib.Path(__file__).resolve().parents[2] / "reclaim" / "jobs"
     registered = (root / "jobs.py").read_text() + (root / "percase.py").read_text()
-    for absent in ("apply_policy", "ingest_webhook", "notifier"):
+    for absent in ("ingest_webhook", "notifier"):
         assert absent not in registered, f"the runtime wires {absent}"

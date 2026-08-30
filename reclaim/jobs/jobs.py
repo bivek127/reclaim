@@ -27,6 +27,7 @@ from reclaim.jobs.percase import (
     case_worker_operation,
     diagnosis_operation,
     executor_operation,
+    policy_operation,
     reconciler_operation,
     verifier_operation,
 )
@@ -39,6 +40,7 @@ ACTION_DEADLINE_EXPIRY = "action-deadline-expiry"
 BREAKER_MONITOR = "breaker-monitor"
 CASE_WORKER = "case-worker"
 DIAGNOSIS = "diagnosis"
+POLICY = "policy"
 EXECUTOR = "executor"
 RECONCILER = "reconciler"
 VERIFIER = "verifier"
@@ -132,11 +134,11 @@ def register_per_case_jobs(
     Each claims one state, holds the lease that state's work is sized for, and
     hands the claim's fencing token straight to the domain.
 
-    The case worker's span stops at DIAGNOSING. ATTEMPT_FAILED routing has no
-    settled contract -- no rule selects between POLICY_EVAL and ESCALATED -- and
-    POLICY_EVAL cannot be claimed while `conflicting_history` has no schema
-    mapping. A job claiming either would have to decide what they mean, which is
-    not a scheduling decision to make.
+    ATTEMPT_FAILED is not claimed here. Its routing rule is settled --
+    docs/ARCHITECTURE.md gives it explicitly -- but no domain accessor yet
+    reads `(attempt_count, max_attempts)` for a case outside POLICY_EVAL, which
+    every existing reader assumes. That is a missing accessor, not an
+    undefined contract, and it is not this registration's job to invent one.
     """
     values = config if config is not None else load_operational()
     kwargs = {} if provider is None else {"provider": provider}
@@ -165,6 +167,21 @@ def register_per_case_jobs(
             connect=app_conn,
             expected_states=(CaseState.DIAGNOSING,),
             lease_seconds=lease_seconds_for("diagnosis"),
+        )
+    )
+    # §3.1 names this state's owner "Policy Engine", distinct from the "Case
+    # Worker" label the surrounding states share -- a real decision, not a
+    # mechanical transition, so it gets its own job rather than folding into
+    # case-worker's advance map.
+    registry.register(
+        JobSpec(
+            name=POLICY,
+            kind=JobKind.PER_CASE,
+            interval_seconds=int(values["case_worker_interval_seconds"]),
+            operation=policy_operation(),
+            connect=app_conn,
+            expected_states=(CaseState.POLICY_EVAL,),
+            lease_seconds=lease_seconds_for("policy"),
         )
     )
     registry.register(
