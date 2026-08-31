@@ -365,6 +365,38 @@ def list_reviews(
     return tuple(rows), int(total_row[0]) if total_row else 0
 
 
+def list_unmappable_webhooks(
+    conn: psycopg.Connection,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[tuple[dict[str, Any], ...], int]:
+    """Webhooks ingest could not anchor to any obligation (§1.3).
+
+    No case exists for these rows -- `case_id` is durably NULL, so there is no
+    join to a case or obligation the way `list_reviews` has. The payload is
+    exactly what was received, which is what an operator needs to tell what
+    the anchor should have been; nothing here interprets or corrects it.
+    """
+    bounded = max(1, min(int(limit), 200))
+    skip = max(0, int(offset))
+
+    total_row = conn.execute(
+        "SELECT count(*) FROM webhook_events WHERE resolution = 'UNMAPPABLE'"
+    ).fetchone()
+
+    rows = _rows(conn.execute(
+        """
+        SELECT id AS webhook_event_id, provider_event_id, event_type,
+               payload, received_at
+          FROM webhook_events
+         WHERE resolution = 'UNMAPPABLE'
+         ORDER BY received_at ASC, id ASC
+         LIMIT %s OFFSET %s
+        """, (bounded, skip)))
+    return tuple(rows), int(total_row[0]) if total_row else 0
+
+
 def system_status(conn: psycopg.Connection) -> dict[str, Any]:
     """Breaker plus lease/queue health, for the operational status view."""
     breaker = _rows(conn.execute(

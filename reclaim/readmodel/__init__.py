@@ -11,6 +11,7 @@ from reclaim.readmodel.queries import (
     get_case,
     list_cases,
     list_reviews,
+    list_unmappable_webhooks,
     overview,
     system_status,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "get_case",
     "list_cases",
     "list_reviews",
+    "list_unmappable_webhooks",
     "overview",
     "system_status",
 ]

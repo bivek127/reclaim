@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import psycopg
 import pytest
 
@@ -116,3 +118,90 @@ def test_system_status_reports_breaker_and_lease_health(
     for key in ("leases_held", "leases_expired", "open_actions",
                 "unresolved_attempts", "stale_writes_rejected"):
         assert isinstance(status[key], int)
+
+
+def _insert_unmappable(
+    conn: psycopg.Connection,
+    *,
+    provider_event_id: str,
+    event_type: str = "subscription.pending",
+    payload: dict | None = None,
+) -> int:
+    row = conn.execute(
+        """
+        INSERT INTO webhook_events (
+            provider_event_id, event_type, signature_valid,
+            resolution, anchor_canonical, payload
+        ) VALUES (%s, %s, true, 'UNMAPPABLE', NULL, %s::jsonb)
+        RETURNING id
+        """,
+        (provider_event_id, event_type, json.dumps(payload or {"entity": "event"})),
+    ).fetchone()
+    assert row is not None
+    return row[0]
+
+
+def test_empty_unmappable_queue_reports_zero(conn: psycopg.Connection) -> None:
+    rows, total = readmodel.list_unmappable_webhooks(conn)
+    assert rows == () and total == 0
+
+
+def test_unmappable_webhooks_are_listed_oldest_first(
+    conn: psycopg.Connection,
+) -> None:
+    """A webhook that has been sitting unresolved longest is triaged first."""
+    conn.execute(
+        "INSERT INTO webhook_events (provider_event_id, event_type, "
+        "signature_valid, resolution, payload, received_at) "
+        "VALUES ('evt-old', 'subscription.pending', true, 'UNMAPPABLE', "
+        "'{}'::jsonb, now() - interval '1 hour')"
+    )
+    conn.execute(
+        "INSERT INTO webhook_events (provider_event_id, event_type, "
+        "signature_valid, resolution, payload, received_at) "
+        "VALUES ('evt-new', 'subscription.pending', true, 'UNMAPPABLE', "
+        "'{}'::jsonb, now())"
+    )
+    rows, total = readmodel.list_unmappable_webhooks(conn)
+    assert total == 2
+    assert [r["provider_event_id"] for r in rows] == ["evt-old", "evt-new"]
+
+
+def test_unmappable_webhooks_carry_the_full_stored_payload(
+    conn: psycopg.Connection,
+) -> None:
+    """The raw payload is what lets an operator judge the correct anchor."""
+    payload = {"event": "subscription.pending", "payload": {"subscription": {}}}
+    _insert_unmappable(conn, provider_event_id="evt-payload", payload=payload)
+    rows, _ = readmodel.list_unmappable_webhooks(conn)
+    assert rows[0]["payload"] == payload
+    assert rows[0]["event_type"] == "subscription.pending"
+
+
+def test_resolved_and_ignored_webhooks_do_not_appear(
+    conn: psycopg.Connection,
+) -> None:
+    """Only the resolution this queue exists for is ever returned."""
+    conn.execute(
+        "INSERT INTO webhook_events (provider_event_id, event_type, "
+        "signature_valid, resolution, payload) "
+        "VALUES ('evt-ignored', 'refund.created', true, 'IGNORED', '{}'::jsonb)"
+    )
+    conn.execute(
+        "INSERT INTO webhook_events (provider_event_id, event_type, "
+        "signature_valid, resolution, payload) "
+        "VALUES ('evt-malformed', 'unknown', true, 'MALFORMED', '{}'::jsonb)"
+    )
+    rows, total = readmodel.list_unmappable_webhooks(conn)
+    assert rows == () and total == 0
+
+
+def test_unmappable_pagination_bounds_are_enforced(
+    conn: psycopg.Connection,
+) -> None:
+    for i in range(5):
+        _insert_unmappable(conn, provider_event_id=f"evt-page-{i}")
+    page_rows, total = readmodel.list_unmappable_webhooks(conn, limit=2, offset=0)
+    assert len(page_rows) == 2 and total == 5
+    assert len(readmodel.list_unmappable_webhooks(conn, limit=9999)[0]) == 5
+    assert len(readmodel.list_unmappable_webhooks(conn, limit=0)[0]) == 1

@@ -40,5 +40,6 @@ export const casePath = (caseId: number) => `/cases/${caseId}`;
 export const caseTimelinePath = (caseId: number) => `/cases/${caseId}/timeline`;
 export const reviewPath = (caseId: number) => `/reviews/${caseId}`;
 export const reviewsPath = () => "/reviews";
+export const unmappablePath = () => "/unmappable";
 export const overviewPath = () => "/";
 export const systemPath = () => "/system";

@@ -16,6 +16,7 @@ const NAV = [
   { to: "/", label: "Overview", end: true, hint: "What needs attention now" },
   { to: "/cases", label: "Cases", hint: "Find and triage recovery cases" },
   { to: "/reviews", label: "Reviews", hint: "Decide on escalated cases" },
+  { to: "/unmappable", label: "Unmapped", hint: "Webhooks that could not be anchored" },
   { to: "/system", label: "System", hint: "Breaker and worker health" },
 ];
 
@@ -32,7 +33,14 @@ export function AppShell() {
     refetchInterval: 30_000,
   });
 
+  const unmappable = useQuery({
+    queryKey: ["unmappable", "badge"],
+    queryFn: () => api.unmappable(1, 0),
+    refetchInterval: 30_000,
+  });
+
   const pending = reviews.data?.total ?? 0;
+  const unmapped = unmappable.data?.total ?? 0;
   const environment = meta.data?.environment;
 
   return (
@@ -61,6 +69,11 @@ export function AppShell() {
                   {item.to === "/reviews" && pending > 0 && (
                     <span className="nav__count" aria-label={`${pending} pending`}>
                       {pending}
+                    </span>
+                  )}
+                  {item.to === "/unmappable" && unmapped > 0 && (
+                    <span className="nav__count" aria-label={`${unmapped} unmapped`}>
+                      {unmapped}
                     </span>
                   )}
                 </NavLink>

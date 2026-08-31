@@ -253,6 +253,21 @@ export interface ReviewQueue {
   status: string;
 }
 
+export interface UnmappableWebhookRow {
+  webhook_event_id: number;
+  provider_event_id: string;
+  event_type: string;
+  payload: unknown;
+  received_at: string;
+}
+
+export interface UnmappableQueue {
+  rows: UnmappableWebhookRow[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface SystemStatus {
   breaker: {
     state: string;

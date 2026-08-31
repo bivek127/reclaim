@@ -179,6 +179,38 @@ def test_review_queue_and_evidence(client: TestClient,
     assert evidence["reviewable_actions"] == ["CREATE_PAYMENT_LINK"]
 
 
+def test_unmappable_queue_lists_unanchored_webhooks(client: TestClient,
+                                                    conn: psycopg.Connection) -> None:
+    conn.execute(
+        "INSERT INTO webhook_events (provider_event_id, event_type, "
+        "signature_valid, resolution, payload) "
+        "VALUES ('evt-unmap-1', 'subscription.pending', true, 'UNMAPPABLE', "
+        "'{\"event\": \"subscription.pending\"}'::jsonb)"
+    )
+    queue = client.get("/api/unmappable")[1]
+    assert queue["total"] == 1
+    assert queue["rows"][0]["provider_event_id"] == "evt-unmap-1"
+    assert queue["rows"][0]["event_type"] == "subscription.pending"
+    assert queue["rows"][0]["payload"] == {"event": "subscription.pending"}
+
+
+def test_unmappable_queue_excludes_other_resolutions(client: TestClient,
+                                                      conn: psycopg.Connection) -> None:
+    conn.execute(
+        "INSERT INTO webhook_events (provider_event_id, event_type, "
+        "signature_valid, resolution, anchor_canonical, payload) "
+        "VALUES ('evt-resolved', 'payment.failed', true, 'RESOLVED', "
+        "'order:ord_1', '{}'::jsonb)"
+    )
+    conn.execute(
+        "INSERT INTO webhook_events (provider_event_id, event_type, "
+        "signature_valid, resolution, payload) "
+        "VALUES ('evt-ignored', 'payment.captured', true, 'IGNORED', '{}'::jsonb)"
+    )
+    queue = client.get("/api/unmappable")[1]
+    assert queue["total"] == 0
+
+
 def test_approve_requires_a_dispatchable_action(client: TestClient,
                                                 conn: psycopg.Connection) -> None:
     ids = seed_escalated(conn)

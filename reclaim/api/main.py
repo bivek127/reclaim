@@ -15,6 +15,7 @@ Route -> operation it delegates to:
                                         + audit.reconstruct_case_history
     GET  /api/reviews                -- readmodel.list_reviews
     GET  /api/reviews/{id}           -- domain.load_review_evidence
+    GET  /api/unmappable             -- readmodel.list_unmappable_webhooks
     POST /api/reviews/{id}/approve   -- domain.claim_case + domain.approve_review
     POST /api/reviews/{id}/reject    -- domain.claim_case + domain.reject_review
     GET  /api/system                 -- readmodel.system_status
@@ -327,6 +328,19 @@ def _ingest(signature_valid: bool, body: bytes, event_id: str) -> Any:
             raw_body=body,
             provider_event_id=event_id,
         )
+
+
+@app.get("/api/unmappable")
+def get_unmappable(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> dict[str, Any]:
+    with app_conn() as conn:
+        rows, total = readmodel.list_unmappable_webhooks(
+            conn, limit=limit, offset=offset
+        )
+    return {"rows": plain(list(rows)), "total": total,
+            "limit": limit, "offset": offset}
 
 
 @app.get("/api/system")

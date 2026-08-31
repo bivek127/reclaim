@@ -7,7 +7,8 @@
  */
 
 import type {
-  CaseDetail, CaseHistory, CasePage, Health, Meta, Overview, ReviewQueue, SystemStatus,
+  CaseDetail, CaseHistory, CasePage, Health, Meta, Overview, ReviewQueue,
+  SystemStatus, UnmappableQueue,
 } from "./types";
 
 /** An error carrying the status and the server's own explanation. */
@@ -106,6 +107,8 @@ export const api = {
     request<ReviewQueue>(`/api/reviews${qs({ status, limit, offset })}`),
   reviewEvidence: (caseId: number) =>
     request<Record<string, unknown>>(`/api/reviews/${caseId}`),
+  unmappable: (limit = 50, offset = 0) =>
+    request<UnmappableQueue>(`/api/unmappable${qs({ limit, offset })}`),
   system: () => request<SystemStatus>("/api/system"),
 
   /** Approval proposes an action. The executor still performs the dispatch. */
