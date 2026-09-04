@@ -11,9 +11,23 @@ import { StateDistribution } from "@/components/overview/StateDistribution";
 import { SystemStatus } from "@/components/overview/SystemStatus";
 import { RecentActivity } from "@/components/overview/RecentActivity";
 import { api, ApiError } from "@/lib/api";
+import { formatMoney } from "@/lib/money";
 import { deadlineDistance, relativeFromNow } from "@/lib/time";
 import "./OverviewPage.css";
 import { casesPath, reviewPath, reviewsPath } from "@/lib/routes";
+import type { Overview } from "@/lib/types";
+
+// Grouped by currency at the source, so nothing here sums across currencies —
+// an undenominated total would misrepresent money the read model never merged.
+function recoveredNote(o: Overview): string {
+  if (o.recovered_by_currency.length === 0) {
+    return "Cases with payment independently verified by two sources.";
+  }
+  const amounts = o.recovered_by_currency
+    .map((r) => formatMoney(r.amount_minor, r.currency))
+    .join(", ");
+  return `${amounts} recovered, independently verified by two sources.`;
+}
 
 /**
  * The operations landing screen.
@@ -117,7 +131,7 @@ export function OverviewPage() {
             {
               label: "Recovered",
               value: o.recovered_count,
-              note: "Cases with payment independently verified by two sources.",
+              note: recoveredNote(o),
               to: "/cases?state=VERIFIED_RECOVERED",
               tone: o.recovered_count > 0 ? "success" : "neutral",
             },

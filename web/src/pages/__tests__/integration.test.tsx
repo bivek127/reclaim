@@ -35,7 +35,7 @@ function overviewData(): Overview {
   counts["ESCALATED"] = 3;
   return {
     state_counts: counts, attention_total: 5, in_flight_total: 3,
-    recovered_count: 2, recovered_amount_minor: 554900, pending_reviews: 1,
+    recovered_count: 2, recovered_by_currency: [{ currency: "INR", amount_minor: 554900 }], pending_reviews: 1,
     oldest_pending_review_at: null, breaker_state: "CLOSED",
     breaker_consecutive_failures: 0, recent_activity: [],
   };

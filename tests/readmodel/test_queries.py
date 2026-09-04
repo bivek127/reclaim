@@ -9,8 +9,14 @@ import pytest
 
 from reclaim import readmodel
 from reclaim.domain.states import CASE_STATES, CaseState
+from reclaim.domain.verification import verify_case
 from tests.domain.review_helpers import seed_escalated
-from tests.domain.verification_helpers import seed_awaiting_customer
+from tests.domain.verification_helpers import (
+    StubVerifyProvider,
+    deliver_webhook,
+    fetch_paid,
+    seed_awaiting_customer,
+)
 
 
 def test_empty_database_reports_zeroes_not_errors(conn: psycopg.Connection) -> None:
@@ -18,7 +24,8 @@ def test_empty_database_reports_zeroes_not_errors(conn: psycopg.Connection) -> N
     assert page.total == 0 and page.rows == ()
     o = readmodel.overview(conn)
     assert o.attention_total == 0
-    assert o.recovered_amount_minor == 0
+    assert o.recovered_count == 0
+    assert o.recovered_by_currency == ()
     assert o.state_counts[CaseState.ESCALATED.value] == 0
 
 
@@ -107,7 +114,37 @@ def test_recovered_total_counts_only_verified_recovered(
 ) -> None:
     """Revenue reporting must not drift from the state that authorises it."""
     seed_escalated(conn)
-    assert readmodel.overview(conn).recovered_amount_minor == 0
+    o = readmodel.overview(conn)
+    assert o.recovered_count == 0
+    assert o.recovered_by_currency == ()
+
+
+def _recover(conn: psycopg.Connection, verifier_conn: psycopg.Connection, *,
+             amount_minor: int, currency: str, suffix: str) -> None:
+    """Drive a case through verification to VERIFIED_RECOVERED."""
+    ids = seed_awaiting_customer(
+        conn, amount_minor=amount_minor, currency=currency, suffix=suffix,
+    )
+    deliver_webhook(conn, ids)
+    provider = StubVerifyProvider(fetch_paid(amount_paid_minor=amount_minor, currency=currency))
+    verify_case(verifier_conn, ids["case_id"], provider=provider, fencing_token=0,
+                worker_id="verifier-1")
+
+
+def test_recovered_total_groups_by_currency(
+    conn: psycopg.Connection, verifier_conn: psycopg.Connection,
+) -> None:
+    """A currency-agnostic sum has no meaning once a second currency exists."""
+    _recover(conn, verifier_conn, amount_minor=425_000, currency="INR", suffix="cur1")
+    _recover(conn, verifier_conn, amount_minor=10_000, currency="USD", suffix="cur2")
+    _recover(conn, verifier_conn, amount_minor=75_000, currency="INR", suffix="cur3")
+
+    o = readmodel.overview(conn)
+    assert o.recovered_count == 3
+    assert dict((r["currency"], r["amount_minor"]) for r in o.recovered_by_currency) == {
+        "INR": 500_000,
+        "USD": 10_000,
+    }
 
 
 def test_system_status_reports_breaker_and_lease_health(

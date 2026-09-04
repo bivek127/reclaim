@@ -74,7 +74,7 @@ class Overview:
     attention_total: int
     in_flight_total: int
     recovered_count: int
-    recovered_amount_minor: int
+    recovered_by_currency: tuple[dict[str, Any], ...]
     pending_reviews: int
     oldest_pending_review_at: datetime | None
     breaker_state: str
@@ -289,12 +289,22 @@ def overview(conn: psycopg.Connection, *, activity_limit: int = 12) -> Overview:
     for state in CASE_STATES:
         counts.setdefault(state.value, 0)
 
-    recovered = conn.execute(
+    # A currency-agnostic sum has no meaning once a second currency exists, so
+    # revenue is grouped rather than collapsed into one undenominated figure.
+    recovered_rows = conn.execute(
         """
-        SELECT count(*), COALESCE(sum(recovered_amount_minor), 0)
-          FROM recovery_cases WHERE state = 'VERIFIED_RECOVERED'
+        SELECT o.currency, count(*), sum(c.recovered_amount_minor)
+          FROM recovery_cases c
+          JOIN financial_obligations o ON o.id = c.obligation_id
+         WHERE c.state = 'VERIFIED_RECOVERED'
+         GROUP BY o.currency
+         ORDER BY o.currency
         """
-    ).fetchone()
+    ).fetchall()
+    recovered_count = sum(int(r[1]) for r in recovered_rows)
+    recovered_by_currency = tuple(
+        {"currency": str(r[0]), "amount_minor": int(r[2])} for r in recovered_rows
+    )
 
     reviews = conn.execute(
         """
@@ -321,8 +331,8 @@ def overview(conn: psycopg.Connection, *, activity_limit: int = 12) -> Overview:
         state_counts=counts,
         attention_total=sum(counts.get(s, 0) for s in ATTENTION_STATES),
         in_flight_total=sum(counts.get(s, 0) for s in IN_FLIGHT_STATES),
-        recovered_count=int(recovered[0]) if recovered else 0,
-        recovered_amount_minor=int(recovered[1]) if recovered else 0,
+        recovered_count=recovered_count,
+        recovered_by_currency=recovered_by_currency,
         pending_reviews=int(reviews[0]) if reviews else 0,
         oldest_pending_review_at=reviews[1] if reviews else None,
         breaker_state=str(breaker[0]) if breaker else "UNKNOWN",

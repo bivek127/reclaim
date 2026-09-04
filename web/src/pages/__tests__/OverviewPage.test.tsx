@@ -26,7 +26,7 @@ function overview(over: Partial<Overview> = {}): Overview {
   counts["AWAITING_CUSTOMER"] = 3; counts["VERIFIED_RECOVERED"] = 2;
   return {
     state_counts: counts, attention_total: 5, in_flight_total: 3,
-    recovered_count: 2, recovered_amount_minor: 554900, pending_reviews: 2,
+    recovered_count: 2, recovered_by_currency: [{ currency: "INR", amount_minor: 554900 }], pending_reviews: 2,
     oldest_pending_review_at: new Date(Date.now() - 600_000).toISOString(),
     breaker_state: "CLOSED", breaker_consecutive_failures: 0,
     recent_activity: [
@@ -126,16 +126,37 @@ describe("operations overview", () => {
     expect(band.getByText("3")).toBeInTheDocument();
   });
 
-  it("counts recovered cases without asserting a currency the API does not supply", async () => {
+  it("shows the recovered total denominated in its own currency", async () => {
     vi.spyOn(api, "overview").mockResolvedValue(overview());
     vi.spyOn(api, "cases").mockResolvedValue(casePage([caseRow()]));
     vi.spyOn(api, "reviews").mockResolvedValue(reviewQueue(0));
     show();
     const band = within(await screen.findByRole("list", { name: "Operational summary" }));
     expect(band.getByText("Recovered")).toBeInTheDocument();
-    // The overview endpoint returns a bare minor-unit total with no currency,
-    // so no monetary figure is rendered from it.
-    expect(screen.queryByText("₹5,549.00")).not.toBeInTheDocument();
+    expect(await screen.findByText(/₹5,549\.00 recovered/)).toBeInTheDocument();
+  });
+
+  it("never collapses more than one currency into a single figure", async () => {
+    vi.spyOn(api, "overview").mockResolvedValue(overview({
+      recovered_by_currency: [
+        { currency: "INR", amount_minor: 554900 },
+        { currency: "USD", amount_minor: 10000 },
+      ],
+    }));
+    vi.spyOn(api, "cases").mockResolvedValue(casePage([caseRow()]));
+    vi.spyOn(api, "reviews").mockResolvedValue(reviewQueue(0));
+    show();
+    expect(await screen.findByText(/₹5,549\.00, \$100\.00 recovered/)).toBeInTheDocument();
+  });
+
+  it("names an empty recovered total for what it is, not a hidden zero", async () => {
+    vi.spyOn(api, "overview").mockResolvedValue(overview({
+      recovered_count: 0, recovered_by_currency: [],
+    }));
+    vi.spyOn(api, "cases").mockResolvedValue(casePage([caseRow()]));
+    vi.spyOn(api, "reviews").mockResolvedValue(reviewQueue(0));
+    show();
+    expect(await screen.findByText("Cases with payment independently verified by two sources.")).toBeInTheDocument();
   });
 
   it("formats attention-case amounts with their own currency", async () => {

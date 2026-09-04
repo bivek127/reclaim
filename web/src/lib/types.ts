@@ -55,12 +55,17 @@ export interface ActivityEvent {
   reviewer_ref: string | null;
 }
 
+export interface RecoveredByCurrency {
+  currency: string;
+  amount_minor: number;
+}
+
 export interface Overview {
   state_counts: Record<string, number>;
   attention_total: number;
   in_flight_total: number;
   recovered_count: number;
-  recovered_amount_minor: number;
+  recovered_by_currency: RecoveredByCurrency[];
   pending_reviews: number;
   oldest_pending_review_at: string | null;
   breaker_state: string;

@@ -120,7 +120,7 @@ Status: complete, verified against real PostgreSQL.
   the outcome. The idempotency key is persisted **before** any network call
   (contract 2), so a crash can never leave a charge the system cannot recognise.
 - `reclaim/domain/breaker.py` — reads the dispatch gate and counts consecutive
-  failures. It never writes the breaker's state.
+  failures.
 
 Boundaries held:
 
@@ -131,6 +131,24 @@ Boundaries held:
 - An unknown outcome becomes `AMBIGUOUS` and never a failure (contract 3).
 - One open action per case and one open attempt per action, enforced by the
   partial unique indexes rather than by application checks (contract 4).
+
+### Breaker monitor
+
+Status: complete, verified against real PostgreSQL.
+
+`reclaim/jobs/breaker.py::monitor_breaker` is the only writer of the breaker's
+state: it opens the gate at the configured consecutive-failure threshold and
+closes it once the recorded reset deadline has elapsed, through the same
+audited `set_breaker_state` mutation the domain already exposed. It fails
+closed on every uncertainty — a tick that cannot read the breaker changes
+nothing, and an open breaker with no recorded deadline stays open rather than
+being closed on a guess.
+
+A breaker that is closed, or that a tick just closed, resumes up to the
+configured batch limit of `HALTED` cases in the same tick, with
+`active_since` reset so halted time is never charged against TTL (contract 8).
+Registered on the batch-job loop at the configured interval
+(`reclaim/jobs/jobs.py`), alongside the sweeper and the expiry jobs.
 
 ### Reconciliation
 
@@ -191,9 +209,10 @@ Status: complete, verified against real PostgreSQL.
 Policy calls no provider, dispatches nothing, writes no revenue, and creates no
 diagnoses. An escalation carries no action, by construction.
 
-One thing callers must supply: whether the customer has conflicting payment
-history. The formula is defined, but no schema mapping for it is specified yet,
-so it is an explicit input rather than something inferred from the database.
+`conflicting_history` — a prior recovered case and a prior failed case for the
+same customer within a trailing window — is resolved from `recovery_cases`
+history by `reclaim/domain/policy.py::resolve_conflicting_history` and fed
+into policy evaluation as a read, not supplied by the caller.
 
 ### LLM diagnosis
 
@@ -299,8 +318,14 @@ function, and translate the outcome.
 - `reclaim/api/` — the HTTP boundary. Write routes compose an existing lease
   claim with an existing review primitive; fencing, expected-state checks, the
   transition, and the audit row all stay inside the domain.
-- `web/` — six surfaces: overview, case queue, case investigation, audit
-  timeline, human review, and system status.
+- `web/` — seven surfaces: overview, case queue, case investigation, audit
+  timeline, human review, the unmapped-webhook queue, and system status.
+
+The unmapped-webhook queue is visibility only: a webhook whose payload could
+not be anchored to an obligation is durably `case_id = NULL` and now listed
+for a human to read, with its full stored payload, oldest first. Manual
+anchoring is not implemented; there is no operator action here that touches
+`webhook_events` or creates a case.
 
 Design rules the console holds to:
 
@@ -324,14 +349,6 @@ Design rules the console holds to:
 
 ## Not built, on purpose
 
-**The breaker monitor.** Opening and resetting the circuit breaker belongs to a
-monitor job that does not exist. The executor reads the gate and counts
-failures, but never writes the breaker's state.
-
-*Consequence, stated plainly:* the circuit breaker cannot open or reset in a
-running system. Failures accumulate and nothing acts on them. The system view
-reports this honestly rather than implying a recovery that cannot happen.
-
 **A lift confidence interval.** The simulator reports a point estimate. Naming a
 statistical method here would be inventing a contract the design does not state.
 
@@ -339,13 +356,15 @@ statistical method here would be inventing a contract the design does not state.
 
 ## Known gaps
 
-- **Recovered totals are single-currency.** The overview aggregate sums
-  `recovered_amount_minor` without grouping by currency, so the figure has no
-  denomination once a second currency exists. The console shows a case count
-  instead of an undenominated amount. The fix is to group by currency in the
-  read model.
-- **Conflicting payment history** must be supplied by callers until a schema
-  mapping for it is defined.
+- **The customer-facing notifier is unimplemented.** Nothing in the codebase
+  sends the payment-link SMS or email a customer would act on. Its designed
+  failure behavior is deliberately terminal — it never touches case state, so
+  its absence changes no invariant, but a recovery action currently reaches a
+  customer only through the provider's own notification, not through this
+  system.
+- **Manual anchoring for unmappable webhooks is not implemented.** The
+  operator console surfaces the queue (above); there is no write path yet for
+  a human to assign an anchor to one of these payloads.
 
 ---
 
@@ -358,10 +377,10 @@ python3 -m pytest tests/provider -m provider_contract         # needs test-mode 
 cd web && npx vitest run                                      # console
 ```
 
-Last run (2026-08-28, no Razorpay credentials sourced): **1004 passed, 9
-skipped** for the Python suite against real PostgreSQL, and **198 passed** for
-the console. The nine skips are the provider contract tests that need live
-test-mode credentials.
+Last run (2026-08-31, no Razorpay credentials sourced): **1247 passed, 9
+skipped** for the Python suite against real PostgreSQL, and **204 passed**
+across 16 files for the console. The nine skips are the provider contract
+tests that need live test-mode credentials.
 
 Database behaviour, concurrency, transactions, constraints, and fencing are
 tested against real PostgreSQL rather than a stub — a fake cannot refuse a write

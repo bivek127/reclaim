@@ -123,7 +123,8 @@ def test_health_and_meta_expose_domain_vocabulary(client: TestClient) -> None:
 def test_overview_on_empty_database(client: TestClient) -> None:
     body = client.get("/api/overview")[1]
     assert body["attention_total"] == 0
-    assert body["recovered_amount_minor"] == 0
+    assert body["recovered_count"] == 0
+    assert body["recovered_by_currency"] == []
 
 
 def test_cases_listing_and_filters(client: TestClient,
