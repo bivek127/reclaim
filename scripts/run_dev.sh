@@ -56,7 +56,10 @@ for job in "${JOBS[@]}"; do
 done
 
 echo "starting console on :4000"
-(cd web && node server/index.js > "$LOGDIR/reclaim-web.log" 2>&1) &
+# Run directly rather than in a `(cd web && ...) &` subshell: `$!` would
+# capture the subshell's PID, not node's, and stop would leave node itself
+# still bound to the port.
+(cd web && exec node server/index.js) > "$LOGDIR/reclaim-web.log" 2>&1 &
 echo $! >> "$PIDFILE"
 
 sleep 2
