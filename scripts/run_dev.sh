@@ -15,6 +15,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Nothing in the application loads .env itself — the processes below only see
+# what's actually exported into their environment.
+if [[ -f .env ]]; then
+  set -a
+  source .env
+  set +a
+fi
+
 PIDFILE=/tmp/reclaim-dev.pids
 LOGDIR=/tmp
 
