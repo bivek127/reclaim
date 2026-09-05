@@ -1,370 +1,125 @@
 # Roadmap
 
-What is built, what holds it together, and what is deliberately not built.
+What's built, what's provider-verified, and what's still open — grouped by
+area rather than by build history. For the design each of these implements,
+see [docs/ARCHITECTURE.md](ARCHITECTURE.md).
 
-Claims about safety cite the numbered clauses in
-[ARCHITECTURE.md](ARCHITECTURE.md#13-architecture-contract) — "contract 2" means
-clause 2 of that list.
+**Legend:** ✅ Complete &nbsp;·&nbsp; 🟡 Partial / provider-dependent &nbsp;·&nbsp; 🔵 Future
 
 ---
 
 ## Foundations
 
-### Database
+| Area | Status | What exists |
+|---|---|---|
+| Database | ✅ | 22 versioned migrations. Two roles — `recovery_app` for ordinary work, `recovery_verifier` for the one column that represents money. Every constraint has a test that violates it and expects a refusal. |
+| Obligation & case identity | ✅ | Identity binds to the obligation anchor, never a payment id, case id, or webhook id. A duplicate delivery produces exactly one case. |
+| State machine | ✅ | A single `transition()` function is the only thing that changes case state. Every legal edge passes; every illegal pair raises. |
+| Leases, fencing, sweeper | ✅ | `FOR UPDATE SKIP LOCKED` claims, fencing-token write-backs, and an independent sweeper for leases nobody ever released. |
 
-Status: complete.
-
-- 22 versioned migrations in `db/migrations/`, applied by
-  `scripts/apply_migrations.py`.
-- Two roles with different powers: `recovery_app` for ordinary work,
-  `recovery_verifier` for the one column that represents money
-  (`recovered_amount_minor`).
-- Every constraint has a test that violates it and expects the database to
-  refuse — `tests/db/`.
-
-Safety lives in the schema wherever it can. Partial unique indexes enforce "one
-open action per case" and "one open attempt per action" (contract 4); a column
-grant plus a trigger enforce "revenue only after verification" (contract 6).
-These are not application checks that a future caller can forget.
-
-### Obligation and case identity
-
-Status: complete.
-
-- `reclaim/domain/anchors.py` — resolves the obligation anchor (order or
-  subscription-cycle id) from a provider payload.
-- `reclaim/domain/lifecycle.py` — idempotent case creation on that anchor.
-- `reclaim/ingest/webhook.py` — ingest as a domain function; no HTTP server.
-
-Identity binds to the anchor, never to a payment id, case id, or webhook event
-id (contract 1). A duplicate delivery produces one case.
-
-### State machine
-
-Status: complete.
-
-- `reclaim/domain/transitions.py` — a single `transition()` is the only thing
-  that changes case state, and it writes exactly one audit row per transition.
-- `reclaim/domain/states.py` — the allowed edges as an explicit frozenset.
-- `tests/domain/test_transitions.py` — every legal edge passes and **every**
-  illegal pair raises. The test derives its sets from the frozenset itself, so
-  it cannot drift from the implementation.
-
-### Leases, fencing, and the sweeper
-
-Status: complete.
-
-- `reclaim/domain/leases.py` — `claim_case` / `claim_next` using
-  `FOR UPDATE SKIP LOCKED`. `fenced_transition()` wraps `transition()`; a write
-  carrying a stale fencing token is a no-op and is audited as
-  `stale_write_rejected` (contract 9).
-- `reclaim/domain/sweeper.py` — releases expired leases, routes an abandoned
-  `EXECUTING` case to `AMBIGUOUS`, and expires TTL budgets.
-- Lease durations in `config/operational.yaml`; the execution lease is at least
-  twice the provider HTTP timeout, so a lease cannot lapse mid-call.
-
-Time spent `HALTED` does not consume a case's TTL (contract 8).
+Safety lives in the schema wherever it can: partial unique indexes enforce
+"one open action per case," a column grant plus a trigger enforce "revenue
+only after verification." These aren't application checks a future caller
+could forget.
 
 ---
 
 ## Recovery pipeline
 
-### Provider adapter (Razorpay)
-
-Status: implemented and contract-verified as far as a test account can reach.
-
-`reclaim/provider/`:
-
-- `contract.py` — provider-agnostic vocabulary (`ProviderOutcome`,
-  `FetchOutcome`, `LinkStatus`, `ErrorClass`, and the `PaymentProvider`
-  protocol). No Razorpay string crosses this module.
-- `transport.py` — stdlib `http.client` with `connect()` as its own step, so a
-  request that wrote zero bytes is *observed* as such rather than inferred. No
-  internal retries; retry orchestration belongs to the executor.
-- `razorpay.py` — `create_payment_link`, `fetch_by_reference`,
-  `verify_webhook_signature`, status normalization, error classification.
-  `retry_charge` raises: no merchant-facing charge-retry endpoint exists.
-- `config.py` — credentials from the environment, timeouts from config, refusal
-  to run against a live key, and secret redaction in `repr`, `str`, and
-  exception text.
-
-The adapter performs **no database access**: no writes, no transitions, no
-leases, no policy, no reconciliation decisions.
-
-Verified against Razorpay test mode (2026-08-26), 7 of 9 contract tests passing
-live:
-
-- Fetch by `reference_id` works — but the search endpoint is **not immediately
-  consistent** after creation, resolving in roughly 1–3 seconds. This is not
-  documented by Razorpay; it was found by running the suite.
-- Duplicate-reference rejection returns HTTP 400 with a specific message. The
-  adapter deliberately does **not** classify on that text — an undocumented
-  string is not a contract.
-- `expire_by` under 15 minutes is rejected.
-- Test mode rate-limits tightly enough that repeated runs hit HTTP 429; the
-  adapter classified those as rate-limited rather than as rejection.
-
-Two assumptions remain unverified because credentials cannot settle them, and
-both have a safe default:
-
-| Assumption | Safe default |
-|---|---|
-| An expired payment link means the customer will never pay | Expiry exposes no terminal-failure signal. A case past its deadline escalates to a human instead. Closing this needs a human abandoning a real checkout page. |
-| Subscription cycle ids are stable | The existing anchor is retained unchanged. Closing this needs a live subscription with two consecutive failed cycles. |
-
-### Execution and idempotency
-
-Status: complete, verified against real PostgreSQL.
-
-- `reclaim/domain/execution.py` — commit, then call the provider, then commit
-  the outcome. The idempotency key is persisted **before** any network call
-  (contract 2), so a crash can never leave a charge the system cannot recognise.
-- `reclaim/domain/breaker.py` — reads the dispatch gate and counts consecutive
-  failures.
-
-Boundaries held:
-
-- The provider call sits outside every transaction.
-- Every row write rides in `transition()`'s side effects, so a stale token
-  writes nothing. There is no second state machine and no second lease
-  mechanism.
-- An unknown outcome becomes `AMBIGUOUS` and never a failure (contract 3).
-- One open action per case and one open attempt per action, enforced by the
-  partial unique indexes rather than by application checks (contract 4).
-
-### Breaker monitor
-
-Status: complete, verified against real PostgreSQL.
-
-`reclaim/jobs/breaker.py::monitor_breaker` is the only writer of the breaker's
-state: it opens the gate at the configured consecutive-failure threshold and
-closes it once the recorded reset deadline has elapsed, through the same
-audited `set_breaker_state` mutation the domain already exposed. It fails
-closed on every uncertainty — a tick that cannot read the breaker changes
-nothing, and an open breaker with no recorded deadline stays open rather than
-being closed on a guess.
-
-A breaker that is closed, or that a tick just closed, resumes up to the
-configured batch limit of `HALTED` cases in the same tick, with
-`active_since` reset so halted time is never charged against TTL (contract 8).
-Registered on the batch-job loop at the configured interval
-(`reclaim/jobs/jobs.py`), alongside the sweeper and the expiry jobs.
-
-### Reconciliation
-
-Status: complete, verified against real PostgreSQL.
-
-`reclaim/domain/reconciliation.py` claims an ambiguous case, re-queries the
-provider under the persisted reference, classifies the evidence, and settles
-under fencing. Two rounds, each prepare → commit → network → settle.
-
-The evidence model is the point of the component — "not found" is not globally
-equivalent to failure:
-
-| Provider says | Local attempt was | Result |
+| Area | Status | What exists |
 |---|---|---|
-| Found, any status | any | adopt it; the case is waiting on the customer |
-| Not found | the request provably went out | confirmed failure |
-| Not found | the request may never have left | bounded re-send under the *same* key |
-| No usable answer | any | stay ambiguous and poll again — silence is not evidence |
+| Execution & idempotency | ✅ | Idempotency key persisted before any network call. The provider call sits outside every transaction; every write rides the same fencing check as everything else. |
+| Circuit breaker monitor | ✅ | Opens the gate at a configured failure threshold, closes it once the reset window elapses, and resumes any `HALTED` cases in the same tick. Fails closed on every uncertainty. |
+| Reconciliation | ✅ | Re-queries the provider under the persisted reference and classifies the evidence — "not found" is never treated as globally equivalent to failure. |
+| Deterministic policy | ✅ | A pure `evaluate(facts, config)` plus a transactional apply step. Calls no provider, dispatches nothing, writes no revenue. |
 
-The re-send adds no action row, no attempt row, and no budget: it retries the
-same mechanism under the same key, so the one-open-mechanism invariant holds. A
-new idempotency key is never minted during reconciliation. No link status is
-treated as proof of non-payment.
+---
 
-### Verification and revenue
+## AI diagnosis
 
-Status: complete, verified against real PostgreSQL.
+| Area | Status | What exists |
+|---|---|---|
+| LLM diagnosis | ✅ | A strict schema validator rejecting unknown fields, a prompt boundary isolating untrusted data, and a deterministic failure-code fallback. Verified end-to-end **with the model server stopped** — the only real way to know the fallback works. |
 
-`reclaim/domain/verification.py` correlates the provider's webhook with an
-**independent** query it makes itself, compares status, amount (integer minor
-units taken from our own attempt, never from the provider) and currency, then
-writes the verification, the transition, and the revenue in one transaction as
-`recovery_verifier`.
+The model is advisory and structurally cannot move money — see
+[the AI safety boundary](ARCHITECTURE.md#7-ai-safety-boundary).
 
-| Evidence | Result |
-|---|---|
-| Webhook success **and** independent query agrees | recovered; revenue recognised once |
-| Provider success, no correlated webhook | stays waiting; no verification row |
-| The two sources disagree, either direction | ambiguous, no revenue |
-| Timeout, 5xx, rate limit, auth failure, malformed | no row, no transition, retry |
+---
 
-One source never produces a recovery (contract 6). `recovery_app` provably
-cannot write the revenue column — the migration grants that column to the
-verifier role only, and a test asserts the application role is refused.
-Concurrent verifiers on separate connections recognise revenue exactly once.
+## Safety & verification
 
-### Deterministic policy
-
-Status: complete, verified against real PostgreSQL.
-
-- `reclaim/domain/policy.py` — a pure `evaluate(facts, config)` plus a
-  transactional `apply_policy()`.
-- `config/policy.yaml` — the cause → action table, under an explicit
-  `policy_version`. Changing the table bumps the version, because every stored
-  decision records the version it was made under; a decision made last quarter
-  must stay explainable after the table changes.
-
-Policy calls no provider, dispatches nothing, writes no revenue, and creates no
-diagnoses. An escalation carries no action, by construction.
-
-`conflicting_history` — a prior recovered case and a prior failed case for the
-same customer within a trailing window — is resolved from `recovery_cases`
-history by `reclaim/domain/policy.py::resolve_conflicting_history` and fed
-into policy evaluation as a read, not supplied by the caller.
-
-### LLM diagnosis
-
-Status: complete, verified against real PostgreSQL — including with the model
-server stopped.
-
-- `reclaim/llm/` — a strict response-schema validator that rejects unknown
-  fields, the model client boundary, a prompt builder that isolates untrusted
-  data, and a deterministic failure-code → cause map.
-- `reclaim/domain/diagnosis.py` — the model call happens outside the database
-  transaction; the diagnosis, the transition, and the audit row commit together.
-
-The model is advisory and structurally cannot move money: no field in its
-response schema can populate an amount, an identifier, or a destination
-(contract 5). Its recommended action does not bypass the policy table. If the
-model is unreachable the deterministic fallback runs and the workflow
-continues — which is the only way to know the fallback is real.
-
-### Human review
-
-Status: complete, verified against real PostgreSQL.
-
-`reclaim/domain/review.py` — pending entry, an evidence loader, approve, reject,
-and an expiry job.
-
-Approval creates a **proposed** action and nothing else. The executor still
-performs the dispatch, under the same attempt budget, idempotency, and circuit
-breaker as an automated recovery (contract 10). Review never creates attempts or
-provider requests, never moves a case into execution, never calls a provider,
-and never increments the attempt count. There is no side channel that moves
-money.
-
-### Audit and reconstruction
-
-Status: complete.
-
-- `reclaim/audit/` — `load_case_audit_trail` is the package's only database
-  access; reconstruction is a pure fold that imports no driver, names no table,
-  and takes no connection. Enforced by tests that inspect the module, not by
-  convention.
-- Producers cover the whole lifecycle: case created and deduplicated, diagnosis,
-  policy, provider request and response (including a response received but not
-  applied because the worker's token had gone stale), verification, review,
-  breaker open and reset, lease claim and release, rejected stale writes, and
-  one state transition per `transition()`.
-
-A case's story can be rebuilt from `audit_events` alone — obligation, action
-types and order, attempts and references, worker and fencing token, model,
-policy version, provider correlation id, state changes with reasons, the
-reviewer's decision, verification, and lease activity. Anything the trail
-cannot supply is **named** in the result rather than returned as a silent
-`None`: absence of evidence is itself evidence.
-
-### Simulator
-
-Status: complete.
-
-`reclaim/domain/simulator.py` evaluates recovery outcomes across a control and a
-treatment arm over a corpus of real cases. It reads those cases and writes only
-its own `sim_runs` / `sim_outcomes` tables — it creates no case, mutates none,
-transitions none, takes no lease, and imports nothing from the provider layer.
-
-Outcome probability depends only on pre-decision case features, the fixed action
-type, externally sourced per-action rates stored with the run, and a shared
-baseline applied identically to both arms. It **never** depends on the model's
-confidence or reasoning (contract 11). That is enforced three ways, strongest
-first:
-
-1. `sim_outcomes` has no column for any model-generated value. The dependency is
-   not merely forbidden, it is unrepresentable.
-2. Feature extraction takes a case record and **no database connection**, so it
-   cannot reach the diagnoses table at all.
-3. The diagnosed cause is never read; the failure code comes from the original
-   provider payload instead.
-
-A fixed seed reproduces a run exactly — outcomes and reported metrics both.
-Each outcome is a hash of `(seed, case_id, arm)` rather than a draw from a
-shared stream, so adding or reordering cases cannot change another case's
-result. Reproducibility and independence are pinned at the experiment size the
-design calls for, 50 per arm over a 120-case corpus
-(`tests/domain/test_simulator_scale.py`); the other suites run three per arm,
-which proves a mechanism but is too small to catch a defect that is statistical.
-
-**Research values ship unset.** The baseline and per-action rates must be
-externally sourced and cited; those citations do not exist in this repository,
-and `config/simulator.yaml` therefore fails to load with a clear error rather
-than falling back on a plausible-looking guess. A run cannot proceed on invented
-numbers. The four pre-decision features are recorded, not weighted — no
-defensible empirical weights exist for them.
+| Area | Status | What exists |
+|---|---|---|
+| Verification & revenue | ✅ | Correlates a webhook with an independent re-query; writes verification, transition, and revenue in one transaction, `recovery_verifier` role only. |
+| Human review | ✅ | Approval creates a *proposed* action only — the executor still performs the dispatch, under the same budget, idempotency, and breaker as an automated recovery. |
+| Audit & reconstruction | ✅ | A case's full story — obligation, actions, attempts, worker/fencing history, model, policy version, reviewer decision — rebuilds from `audit_events` alone. Anything the trail can't supply is named, never returned as a silent `None`. |
+| Simulator | ✅ | Outcome probability is unrepresentable as a function of model confidence — no column exists for it. Ships with no baseline/rate parameters set by design: it refuses to run on invented numbers rather than guess. |
 
 ---
 
 ## Operator console
 
-Status: complete.
+| Area | Status | What exists |
+|---|---|---|
+| Console | ✅ | Seven surfaces: overview, case queue, case investigation, audit timeline, human review, the unmapped-webhook queue, system status. Every figure traces to an API response — an unreachable service is never rendered as an empty result. |
 
-A React and TypeScript console served by a thin Express layer that holds no
-domain logic and opens no database connection. It talks to a FastAPI adapter
-whose routes each validate input, call exactly one existing domain or read-model
-function, and translate the outcome.
-
-- `reclaim/readmodel/` — read-only projections. No domain behaviour.
-- `reclaim/api/` — the HTTP boundary. Write routes compose an existing lease
-  claim with an existing review primitive; fencing, expected-state checks, the
-  transition, and the audit row all stay inside the domain.
-- `web/` — seven surfaces: overview, case queue, case investigation, audit
-  timeline, human review, the unmapped-webhook queue, and system status.
-
-The unmapped-webhook queue is visibility only: a webhook whose payload could
-not be anchored to an obligation is durably `case_id = NULL` and now listed
-for a human to read, with its full stored payload, oldest first. Manual
-anchoring is not implemented; there is no operator action here that touches
-`webhook_events` or creates a case.
-
-Design rules the console holds to:
-
-- Every figure traces to an API response. There are no trends, rates, or
-  comparisons, because the backend stores no history to derive them from and a
-  decorative chart would be a claim the data cannot support.
-- An unreachable service is never rendered as an empty estate. A panel that
-  cannot read its data says so; it does not show a zero.
-- Money is integer minor units end to end, formatted by integer division and
-  remainder. Currency is never inferred, and an amount without a known currency
-  is not displayed as if denominated.
-- Status is never carried by colour alone: every badge pairs a tint with a shape
-  and the literal state name.
-- The visual hierarchy mirrors the trust hierarchy — financial facts above
-  independent verification, above deterministic policy, above provider claims,
-  above model diagnosis. Approval is never described as a payment.
-- Text contrast meets WCAG AA, checked in the token file by a test rather than
-  by eye.
+The unmapped-webhook queue is **visibility only**. A webhook that couldn't
+be anchored to an obligation is listed for a human to read, full payload
+included — there's no write path yet for assigning an anchor by hand (see
+[Known gaps](#known-gaps)).
 
 ---
 
-## Not built, on purpose
+## Provider integration (Razorpay)
 
-**A lift confidence interval.** The simulator reports a point estimate. Naming a
-statistical method here would be inventing a contract the design does not state.
+| Area | Status | What exists |
+|---|---|---|
+| Adapter | 🟡 | Implemented, contract-verified as far as a test account can reach. No database access — no writes, transitions, leases, or policy decisions happen in this layer. |
+
+Verified live against Razorpay test mode: payment-link creation, fetch by
+reference (not immediately consistent after creation — resolves in roughly
+1–3 seconds, undocumented, found by testing), duplicate-reference rejection
+shape, and the `expire_by` minimum window.
+
+Two assumptions remain genuinely unverified, each with a safe default rather
+than a guess:
+
+| Assumption | Safe default |
+|---|---|
+| An expired payment link can never subsequently be paid | A case past its deadline escalates to a human instead of a second automated action |
+| The subscription billing-cycle id is stable across redeliveries | The current anchor field is kept as-is; closing this needs a live subscription with two consecutive failed cycles |
+
+`retry_charge` is not implemented — Razorpay exposes no merchant-facing
+charge-retry endpoint that accepts a caller-supplied idempotency key, so
+policy never selects it, and the executor refuses it before dispatch even
+if it somehow were.
 
 ---
 
 ## Known gaps
 
-- **The customer-facing notifier is unimplemented.** Nothing in the codebase
-  sends the payment-link SMS or email a customer would act on. Its designed
-  failure behavior is deliberately terminal — it never touches case state, so
-  its absence changes no invariant, but a recovery action currently reaches a
-  customer only through the provider's own notification, not through this
-  system.
-- **Manual anchoring for unmappable webhooks is not implemented.** The
-  operator console surfaces the queue (above); there is no write path yet for
-  a human to assign an anchor to one of these payloads.
+Real, currently unimplemented — not deferred by accident:
+
+| Gap | Status | Why it's not done |
+|---|---|---|
+| Customer-facing notifier | 🔵 | No field in the schema holds a customer's email or phone — building this means choosing a data source first, not writing missing wiring. Its designed failure behavior is deliberately terminal either way: it can never restart case state. |
+| Manual anchoring for unmapped webhooks | 🔵 | The read side is built (see [Operator console](#operator-console)); the write side is genuinely underspecified — letting a human assert a financial anchor by hand needs its own review, not a quick addition. |
+| Lift confidence interval | 🔵 | The simulator reports a point estimate on purpose. Naming a statistical method here would invent a contract the design doesn't state. |
+
+---
+
+## Accepted risks
+
+Carried deliberately — the full reasoning and mitigation for each is in
+[Accepted risks](ARCHITECTURE.md#12-accepted-risks):
+
+| Risk | Production fix |
+|---|---|
+| Global, not per-method, circuit breaker | Per-method or per-cause scoping |
+| Single shared reviewer credential | Per-reviewer identity + permissions |
+| Fixed-interval reconciliation polling | Adaptive/backoff polling |
+| Model confidence unused for safety | Calibration study first |
+| Dual-action supersede covers the common case | Formal proof or exhaustive interleaving tests |
 
 ---
 
@@ -377,11 +132,11 @@ python3 -m pytest tests/provider -m provider_contract         # needs test-mode 
 cd web && npx vitest run                                      # console
 ```
 
-Last run (2026-08-31, no Razorpay credentials sourced): **1247 passed, 9
-skipped** for the Python suite against real PostgreSQL, and **204 passed**
-across 16 files for the console. The nine skips are the provider contract
-tests that need live test-mode credentials.
+Last run (2026-09-05, no Razorpay contract credentials sourced):
+**1248 passed, 9 skipped** for the Python suite against real PostgreSQL, and
+**206 passed** across 16 files for the console. The nine skips are the
+provider contract tests that need live test-mode credentials.
 
-Database behaviour, concurrency, transactions, constraints, and fencing are
-tested against real PostgreSQL rather than a stub — a fake cannot refuse a write
-the way a partial unique index does.
+Database behavior — concurrency, transactions, constraints, fencing — is
+tested against real PostgreSQL rather than a mock: a fake can't refuse a
+write the way a partial unique index does.
